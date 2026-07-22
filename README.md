@@ -63,101 +63,16 @@ Share       "Share video. 116 shares"
 Follow      "Follow <creator name>"
 ```
 
-**Trap 1 — the Like and Share buttons have the same id.** TikTok gives both the id `fux`. Ids are also scrambled on every app release. So we never match on the id, only on the spoken label.
+Then there are the traps. There are more than a dozen now, and every one cost
+real debugging time — buttons that share an id, a "liked" video whose label says
+`Like`, a panel that ignores the back action, a list that relabels itself while
+you read it, and two occasions where the script did something nobody asked for.
 
-**Trap 2 — the screen holds two sets of buttons.** TikTok keeps the *next* video's buttons loaded just below the visible area. A plain search for the Like button finds two, and pressing the wrong one likes a video that was never on screen. Every search filters by position, keeping only what is actually visible.
+They live in **[docs/WHAT-BROKE.md](docs/WHAT-BROKE.md)**, with what went wrong
+and what each rule in the code is protecting against.
 
-**Trap 3 — "liked" does not say "unlike".** Once a video is liked the label shortens to just `"Like"`, with the count dropped, and the selected flag turns true:
-
-```
-not liked  ->  "Like video. 186 likes"    selected false
-liked      ->  "Like"                     selected true
-```
-
-A check looking for the word "unlike" would read a liked video as unliked, press the button, and take the like back off.
-
-**Trap 4 — Favorites hides its state completely.** The label reads "Add or remove this video from Favorites." either way, and no flag changes:
-
-```
-not saved  ->  "Add or remove this video from Favorites."   selected false
-saved      ->  "Add or remove this video from Favorites."   selected false
-```
-
-There is no way to ask TikTok whether a video is saved. Section 6 explains what we do instead.
-
-**Trap 5 — a button can say it is pressable and still refuse.** On the search screen the button that sends the search reports `clickable = true`, and pressing it properly is refused every time. TikTok built it to answer a real finger, not the press Android's accessibility layer offers. A tap at its own coordinates works. The button that *opens* search, on the same screen, does accept a proper press — so no single way of pressing works everywhere.
-
-**Trap 6 — the Like button is not proof you are on the feed.** Every video player has one: search results, a creator's videos, all of them. The script used to check for it and concluded it was back on the feed while still inside the search results, then browsed there for a whole session, reporting success throughout. The tab labelled **"For You"** is the real marker — it names the feed and appears nowhere else.
-
-Be careful which label you pick for this. "Search" also appears on the feed, and looks like a fine marker until you notice the search screen has one too — a check using it reports success one screen too early. It fooled the very probe written to find the answer.
-
-**Trap 7 — AutoJs6's own console window swallows swipes.** Turning on the floating console puts a large translucent panel over roughly the top-left of the screen — about 2 to 68 per cent across, 5 to 45 per cent down. Any gesture passing through that area lands on the panel, not on TikTok.
-
-It broke the swipe back to the previous video, which starts around 30 per cent down and so began inside the panel every time. The swipe to the *next* video starts lower and was unaffected — which is why only one of the two failed, and why it took a while to notice. The script now leaves that window off, and reads its log from the laptop instead.
-
-The wider lesson: **a swipe reports nothing about what it hit.** A swipe onto a panel covering the screen looks exactly like one that worked. Anywhere that matters, the script now checks the screen actually changed rather than assuming the gesture landed.
-
-**Trap 8 — pressing a button can make the next video's button answer you.** After a press, TikTok redraws, and for a moment a fresh search can return the *next* video's button instead of the one you were working on. Anywhere a reading decides whether to press again, we insist the button is back in the same place on screen first. Getting this wrong in the Favorites check would cause exactly the damage that check exists to prevent.
-
-### Inside the Share panel
-
-The Share panel is the one screen that can affect other people. Top to bottom:
-
-```
-71%   "Send to", a search box, and Close
-79%   real account names - pressing one sends them a private message
-87%   Repost, COPY LINK, Messenger, WhatsApp, Facebook, Telegram, SMS
-96%   Report, Not interested, Download, Add to Story, Promote, Cast
-```
-
-Only **Copy link** is safe. The account row sits just 8% of the screen above it, around 220 pixels, which is why nothing in this panel is ever pressed by position — only by an exact label match on a view that reports itself as pressable.
-
-Two more findings, both measured:
-
-- **The back action does not close this panel on Android 16.** Neither does tapping the dimmed area above it. The panel's own Close button does, first time, every time.
-- **Copying a link does count as a share.** The number under the Share button goes up by one. That is the whole reason the action is worth its risk; if it had not counted, we would have dropped sharing the way we dropped commenting.
-
-Sharing is also slow — about ten seconds per video, start to finish — which is a second reason to keep its rate low.
-
-### Searching for a topic
-
-Searching and watching the results is the strongest signal we can send about what the account is interested in. The flow is: open search, type the word, send it, open one of the results, watch a few, come back.
-
-```
-7%    the text box, Clear search field, and the button that sends the search
-11%   tabs: Top | Users | Videos | Sounds | Hashtags | LIVE | Photos | Places
-34%+  results, each labelled "Video by <creator>, <caption>, Liked by 39.1K users"
-```
-
-Getting back out is the risky part, and it needs care in two ways.
-
-**Check twice before pressing back.** A check made while TikTok is still redrawing can report "not the feed" when we are already there. One back press too many, made from the feed, leaves TikTok altogether — which is exactly what happened once. Every press is now preceded by two checks a moment apart.
-
-**Do not assume how many presses it takes.** It has been three, four and five on different runs, because swiping through results makes the trail back longer. The script presses until it recognises the feed, up to a limit, rather than counting.
-
-### Inside the Comments panel
-
-Opening comments to see what people are saying is ordinary behaviour, so we copy it. But this is the most dangerous screen in the app:
-
-```
-34%   "236 comments" header, and Close
-36%   the comment list starts
-41%   ...and mixed through it: Reply buttons, and a heart on every comment
-93%   the list ends
-97%   "Add comment..." text box, Stickers, Mention someone, Send Gift
-```
-
-Three things make it worse than the Share panel:
-
-- **The hearts carry no readable name.** TikTok labels them `@2131823235` — a raw internal number it forgot to turn into words. We cannot even recognise them in order to avoid them.
-- **Reply buttons sit among the comments**, so the reading area itself contains a way into the text box.
-- **Send Gift is at the bottom**, next to the text box. That one spends real money.
-
-So the rule here is absolute: **scroll, never tap.** The only press is Close, and only through the strict check that refuses to tap a position. Scrolling stays between 45% and 85% down the screen, clear of the header above and the text box below, and each swipe is deliberately long — a short drag can be read as a tap.
-
-This panel also does **not** carry the "Bottom sheet" marker the Share panel uses. The "Add comment..." text box is what tells us it is open.
-
-**Scrolling zero times is a real option.** Many videos have only a handful of comments, and on those the list cannot move. Always scrolling would mean swiping at nothing for several seconds — wasted time, and not something a person does. So the number of scrolls is picked from 0 to 2: open, read what fits on the screen, and sometimes close again without scrolling at all.
+**Read that file before changing anything in `src/main.js`.** Most of the
+odd-looking parts are load-bearing.
 
 ## 5. What the script does and does not do
 
@@ -168,13 +83,16 @@ This panel also does **not** carry the "Bottom sheet" marker the Share panel use
 - **Save videos** — add to Favorites, with the safeguard described in section 6
 - **Read the comments** — open the panel, scroll through a few, and close it, the way someone curious what others thought would
 - **Share** — copy the video's link, which stays inside TikTok and still counts as a share
+- **Check its messages** — at the start of a session, open the inbox and reply to unread messages from a named list of accounts, with a sticker from the quick-reply bar
+- **Send a video to a friend** — share a video into another account's inbox, which is what gives the reply above something to answer
 
 ### It does not
 
-- **Write anything.** No comments, no replies, no messages. Reading the comments is fine; adding one is the fastest way to get flagged as spam, and liking plus saving already sends a strong enough signal.
+- **Write anything.** No comments, no replies, no typed messages anywhere. A reply is a sticker and nothing else, and the message box is never touched — in the comments panel, in a conversation, or in the share panel.
 - **Like anyone's comment.** That is a public action under our account's name.
 - **Log in, type passwords, or switch accounts.** The account must already be signed in.
-- **Touch live streams, direct messages, or TikTok Shop.**
+- **Message anyone who is not on a list you wrote.** Replies go only to `reply_to`; videos go only to `send_to`. A name that cannot be found is a message that does not get sent.
+- **Touch live streams or TikTok Shop.**
 - **Get around security checks.** If a captcha or verification screen appears, the script stops and reports it.
 
 ## 6. Never undo what a person did
@@ -209,7 +127,14 @@ phonefarm_automated/
 │       ├── probe_button_state.js  # how a button shows it is already switched on
 │       ├── probe_share_sheet.js   # what is inside the Share panel
 │       ├── probe_comment_panel.js # what is inside the Comments panel
-│       └── probe_search.js        # how to search for a topic and get back
+│       ├── probe_search.js        # how to search for a topic and get back
+│       ├── probe_feed_marker.js   # how to know we are really on the feed
+│       ├── probe_dm_state.js      # the inbox and a conversation, read-only
+│       ├── probe_tidyname.js      # proves the name-cleaning works on the phone
+│       ├── probe_sticker_picker.js# why the sticker grid was rejected
+│       ├── probe_send_reaction.js # sends ONE sticker, with five checks first
+│       ├── probe_share_to_user.js # the share panel's people row, read-only
+│       └── probe_share_select.js  # picks a person, stops before Send
 ├── tools/
 │   ├── deploy.sh                  # send main.js and each phone's settings
 │   ├── run.sh                     # send one script and start it, from your laptop
@@ -218,13 +143,16 @@ phonefarm_automated/
 │   └── status.sh                  # ask every phone how it has been getting on
 └── docs/
     ├── SETUP.md                   # preparing a phone, and running a session
-    └── DEPLOY.md                  # getting files from your laptop to the phones
+    ├── DEPLOY.md                  # getting files from your laptop to the phones
+    └── WHAT-BROKE.md              # every trap, and why each rule exists
 ```
 
 **Only `main.js` goes on a phone.** The probes stay on the laptop, and `run.sh`
-sends one over when you need it. Two of them press buttons — one likes a video,
-another opens the Share panel — so leaving them sitting on a farm phone is an
-accident waiting to happen.
+sends one over when you need it. Several of them press buttons, and two send
+something that cannot be taken back — `probe_send_reaction.js` sends a sticker,
+`probe_share_select.js` chooses a person in the share panel. Leaving those on a
+farm phone is an accident waiting to happen. One earlier probe caused exactly
+that and has been deleted rather than fixed; the story is in `WHAT-BROKE.md`.
 
 They are worth keeping, though. Each one answers a question that is dangerous to
 guess at, and every answer in section 4 came from one of them. When TikTok
@@ -368,6 +296,55 @@ ramp_up: {
 
 Left empty, the script says so at startup rather than quietly guessing.
 
+### Messages
+
+Two halves of one exchange. This phone sends a video to another account; that
+account answers with a sticker at the start of its next session, which may be
+hours later. The delay is not simulated — it falls out of the schedule.
+
+Both are off until you write names into them, and both refuse anything not
+named. A name that cannot be found is a message that does not get sent.
+
+```js
+messages: {
+  enabled: true,
+  chance_of_checking: 0.3,             // not every session opens the inbox
+  reply_to: ["farm-02", "farm-07"],    // exact names, as the inbox shows them
+  max_replies: [1, 2],                 // leaving some unread is realistic
+  chance_of_replying: 0.6,             // sometimes read it and leave
+  reactions: ["Heart", "Lol", "ThumbsUp"]
+},
+
+send_to_friend: {
+  enabled: true,
+  rate: 0.01,                          // share of videos watched
+  send_to: ["farm-02"],                // your own accounts
+  max_per_session: 2,
+  allow_anyone: false,                 // see below before turning this on
+  chance_of_anyone: 0.2,
+  never_send_to: []                    // never contacted, whatever else is set
+}
+```
+
+**A word about `allow_anyone`.** Turning it on lets a video go to somebody not
+on your list — anyone the account has been talking to recently. The argument for
+it is that always sending to the same one friend is its own pattern.
+
+The argument against is bigger. Those are real people who did not ask for this.
+They can block or report, and most will simply never answer — and videos that
+nobody responds to is what spam looks like from outside. Sending to your own
+accounts gets a sticker back, which is the opposite signal.
+
+It also gives up the safety we get from a list. If you do turn it on, keep
+`chance_of_anyone` small, and put anyone who must never be contacted by a script
+into `never_send_to`.
+
+**Think about the shape of the whole farm, not just one phone.** If every phone
+sends to every other phone and they all answer, you have built a closed circle:
+accounts registered together, talking only to each other, always replying. Each
+session looks human and the farm does not. Give each phone one or two names
+rather than all of them.
+
 ## 9. Noticing when a phone stops working
 
 A farm is a dozen phones nobody is looking at. A phone that quietly stopped three days ago looks exactly like a healthy one until someone checks.
@@ -457,13 +434,25 @@ This decides how long the script keeps working. These rules are not optional.
 
 ## 13. What we still need
 
-1. **A Samsung farm phone to test on.** Everything so far is proven on one Xiaomi running Android 16. The farm runs Android 11 to 13 under Samsung's own software, which manages background apps differently. Nothing is confirmed until it runs there.
-2. **The topic** we are targeting, so we can write a real personality instead of an example.
-3. **Account age** — brand new, or already in use? This sets how slowly we ramp up.
-4. **Network** — do the phones share one Wi-Fi connection, or does each have its own mobile data?
-5. **Where the collected data should go** — deferred on purpose, still open.
+**Before the farm runs unattended:**
 
----
+- **A Samsung on Android 11–13.** Nothing here has ever run on one. The farm is
+  Samsung; the test phone is a Xiaomi on Android 16. This is the real unknown.
+- **A lock so two copies cannot run at once.** Two schedulers were seen running
+  together, which would double every session count.
+- **A full day on the schedule.** It has never survived one. Android may kill it.
+
+**Unproven:**
+
+- The login and captcha `stop_signals` have never actually fired.
+- Some conversations have no quick-reply bar at all. The likely reason is that
+  the two accounts do not follow each other — if so it is fixed by following,
+  not by code.
+
+**Decisions still open:**
+
+- Where collected data goes. Deliberately deferred.
+- The real niche keywords. `seed.keywords` is still empty.
 
 ## A note on rules and risk
 

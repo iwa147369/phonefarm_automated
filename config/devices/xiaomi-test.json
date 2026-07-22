@@ -1,5 +1,5 @@
 {
-  "_comment": "The development phone. Schedule is on, with a window in the small hours, so the script should refuse to browse and say so. Change active_hours to test the other half.",
+  "_comment": "The development phone. Schedule is off so a run starts straight away, which is what you want while testing. Messages are turned up to always-on for the same reason - on a real farm phone chance_of_checking and chance_of_replying belong back around 0.3 and 0.6.",
 
   "device_id": "xiaomi-test",
   "adb_serial": "VC7PSS8LNJINY9HY",
@@ -7,10 +7,31 @@
   "session_minutes": [3, 5],
 
   "schedule": {
+    "enabled": false
+  },
+
+  "messages": {
     "enabled": true,
-    "active_hours": [[22, 23]],
-    "sessions_per_day": [2, 3],
-    "gap_minutes": [5, 10]
+
+    "_who": "Only these names are ever opened. All three are our own accounts. The names were copied out of the log rather than typed, because the inbox puts an invisible character in front of each one.",
+    "reply_to": ["Watch Narrative", "Nguyễn Anh Phong Hồ", "minhchiune"],
+
+    "_certainty": "Both set to 1 for testing, so the behaviour happens on this run rather than one run in five.",
+    "chance_of_checking": 1.0,
+    "chance_of_replying": 1.0,
+
+    "max_replies": [2, 2]
+  },
+
+  "send_to_friend": {
+    "enabled": true,
+
+    "_who": "Our own account, and the one every check has been made against. Nothing else in that row is ever pressed - it is full of real people.",
+    "send_to": ["Watch Narrative"],
+
+    "_certainty": "rate 1 with a cap of 1 means it fires on the first video and then stops, so the test is quick. On a real farm phone this belongs back around 0.01 with a cap of 2.",
+    "rate": 1.0,
+    "max_per_session": 1
   },
 
   "seed": {

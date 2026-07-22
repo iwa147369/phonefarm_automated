@@ -34,12 +34,9 @@ var SETTINGS = {
   // Which phone this is. Comes from device.json; only used in logs.
   device_id: "",
 
-  // How long one session lasts, in minutes.
-  //
-  // Write two numbers for a range, and the length is picked fresh each time -
-  // so no two sessions are the same. A single number still works if you want a
-  // fixed length, but a farm where every session runs for exactly ten minutes
-  // is a pattern worth avoiding.
+  // How long one session lasts, in minutes. Two numbers means a range, picked
+  // fresh each time; a farm where every session is exactly ten minutes long is
+  // a pattern worth avoiding.
   session_minutes: [8, 22],
 
   // How often to do each action, as a share of videos watched.
@@ -48,15 +45,11 @@ var SETTINGS = {
     like: 0.20,
     save: 0.05,
 
-    // Open the comments and read a few, the way people do when a video makes
-    // them curious what others thought. We never write anything - see the
-    // Comments panel notes further down for why this one needs care.
+    // Opened and read, never written to.
     read_comments: 0.05,
 
-    // Sharing is slow - opening the panel, pressing, and closing it takes
-    // about ten seconds - and the panel lists real people along the top, where
-    // a wrong press would send someone a private message. Keep this low. Only
-    // an exact match on "Copy link" is ever pressed, never a screen position.
+    // Slow (about ten seconds) and the panel lists real people, so keep it low.
+    // Only "Copy link" is ever pressed.
     share: 0.01
   },
 
@@ -73,17 +66,10 @@ var SETTINGS = {
     instant_skip_seconds: [1, 2]
   },
 
-  // Reading the comments.
   comments: {
-    // How many times to scroll down the list, picked fresh each time.
-    //
-    // Zero is deliberately included. Plenty of videos have only a handful of
-    // comments, and on those the list cannot move at all - scrolling three
-    // times would waste seconds swiping at nothing, which is not what a person
-    // does. One or two is plenty even on a busy video.
+    // Zero is deliberately in range: plenty of videos have only a handful of
+    // comments, and swiping at a list that cannot move is not what people do.
     scrolls: [0, 2],
-
-    // How long to spend reading, before scrolling and between scrolls.
     read_seconds: [1.5, 3]
   },
 
@@ -94,24 +80,100 @@ var SETTINGS = {
   // ---- Telling TikTok what we are interested in ----
   //
   // Searching for a topic and watching the results is the strongest signal we
-  // can send about what the account cares about - much stronger than waiting
-  // for the right video to turn up on its own. We do it once a day, at the
-  // start of a session, then go back to normal browsing.
-  //
-  // Leave enabled off, or keywords empty, and none of this happens.
+  // can send about what an account cares about. Once a day is enough; several
+  // times would look odd. Nothing happens while keywords is empty.
   seed: {
     enabled: true,
-
-    // What to search for. One is picked at random each time. Nothing happens
-    // while this is empty.
     keywords: [],
-
-    // How many of the results to watch before going back to the feed.
     videos_to_watch: [3, 6],
-
-    // Searching several times a day would look odd. Once is enough to steer
-    // the feed. Needs the state file, same as the schedule does.
     once_per_day: true
+  },
+
+  // ---- Replying to messages ----
+  //
+  // People check their messages before they start scrolling, and an account
+  // that receives shares and never responds looks like something being sprayed
+  // at rather than somebody using an app.
+  //
+  // Only a sticker from the quick-send bar is ever sent. Never typed, never
+  // the sticker grid, never the message box. Does nothing until reply_to has
+  // names in it.
+  messages: {
+    enabled: false,
+
+    // How often a session begins by looking at the inbox. Not every session:
+    // somebody who opens their messages every single time is its own pattern.
+    chance_of_checking: 0.30,
+
+    // WHO WE MAY REPLY TO. Exact names as they appear in the inbox. Names, not
+    // "the first few" - the top of a real inbox is New followers and Activity,
+    // and a stranger messaging you takes the top slot from whoever was there.
+    reply_to: [],
+
+    // Keep small. Leaving some unread is what a real inbox looks like.
+    max_replies: [1, 2],
+    chance_of_replying: 0.6,
+
+    // Only these three have been checked. "Effects" and "Cards" sit on the same
+    // bar and nobody has established what they do.
+    reactions: ["Heart", "Lol", "ThumbsUp"]
+  },
+
+  // ---- Sending a video to one of our own accounts ----
+  //
+  // The other half of the messages feature. Replying only happens when there
+  // is something to reply to, and nothing else the script does puts anything
+  // in anybody's inbox - ordinary sharing only copies a link. So without this,
+  // replying almost never fires.
+  //
+  // Together they make one exchange: this phone sends a video, the other
+  // account answers with a sticker at the start of its next session, which may
+  // be hours later. The delay is not simulated - it falls out of the schedule.
+  //
+  // Off by default, and does nothing until send_to has names in it.
+  send_to_friend: {
+    enabled: false,
+
+    // How often, as a share of videos watched. Keep it well below the like
+    // rate: people send each other the odd video, not one in five.
+    rate: 0.01,
+
+    // WHICH ACCOUNTS MAY RECEIVE A VIDEO. Exact names, as they appear in the
+    // share panel. Nothing else is ever pressed.
+    //
+    // Put only your own accounts here. There is no undo, and the row this
+    // reads from is full of real people.
+    send_to: [],
+
+    // At most this many in one session, however many videos get watched. One
+    // account sending a stream of videos to another all evening is a pattern,
+    // and not a human one.
+    max_per_session: 2,
+
+    // ---- Sending to somebody who is not on the list ----
+    //
+    // Off, and think before turning it on. Everybody else in that row is a real
+    // person who did not ask for this; they can block or report, and most will
+    // never answer - and videos nobody responds to is what spam looks like from
+    // outside. It also gives up the safety argument, since a name we cannot
+    // find is a send that does not happen.
+    //
+    // If you turn it on, keep chance_of_anyone small, or the reply half of this
+    // never fires - strangers do not send stickers back.
+    allow_anyone: false,
+
+    // When allowed, how often a send goes to somebody off the list.
+    chance_of_anyone: 0.2,
+
+    // Never sent to, whatever else is set. Exact names. Use this for anybody
+    // real who must not be contacted by a script - a customer, a supplier, a
+    // personal account that happens to share the phone.
+    never_send_to: [],
+
+    // If every phone sends to every other phone and they all answer, the farm
+    // becomes a closed circle - accounts registered together, talking only to
+    // each other, always replying. Each session looks human; the shape of the
+    // whole thing does not. Give each phone one or two names, not all of them.
   },
 
   // ---- When sessions happen ----
@@ -232,13 +294,38 @@ var SETTINGS = {
 // and it gives the Like and Share buttons the *same* id, so ids are useless
 // here. The spoken labels are stable and readable, so we use those.
 
+/**
+ * Turn patterns into the list of matchers findOnScreen expects.
+ *
+ * A bare pattern is tried against the spoken description first and the visible
+ * text second. "d:" restricts it to the description, "t:" to the text.
+ *
+ * That distinction is not decoration. On the search screen two different
+ * buttons are both called "Search", and which one you get depends entirely on
+ * whether you asked for desc or text - see docs/WHAT-BROKE.md.
+ */
+function labels() {
+  var out = [];
+  for (var i = 0; i < arguments.length; i++) {
+    var p = arguments[i];
+    if (p.indexOf("d:") === 0)      out.push(matching(descMatches, p.substring(2)));
+    else if (p.indexOf("t:") === 0) out.push(matching(textMatches, p.substring(2)));
+    else {
+      out.push(matching(descMatches, p));
+      out.push(matching(textMatches, p));
+    }
+  }
+  return out;
+}
+
+function matching(how, pattern) {
+  return function () { return how(pattern); };
+}
+
 var LABELS = {
   // Matches both states. Whether it is already liked is checked separately,
   // because we must never turn someone's like back off.
-  like: [
-    function () { return descMatches("(?i)^(un)?like video\\b.*"); },
-    function () { return descMatches("(?i)^(un)?like\\b.*"); }
-  ],
+  like: labels("d:(?i)^(un)?like video\\b.*", "d:(?i)^(un)?like\\b.*"),
 
   // How to tell a video is already liked. Confirmed by pressing the button and
   // watching what changed:
@@ -253,10 +340,9 @@ var LABELS = {
   // "selected" is the signal we trust; this pattern is the backstop.
   already_liked: /^like$/i,
 
-  save: [
-    function () { return descMatches("(?i)^add or remove this video from favou?rites.*"); },
-    function () { return descMatches("(?i).*\\bfavou?rites?\\b.*"); }
-  ],
+  save: labels(
+    "d:(?i)^add or remove this video from favou?rites.*",
+    "d:(?i).*\\bfavou?rites?\\b.*"),
 
   // The Favorites label is deliberately neutral - "Add or remove this video
   // from Favorites." reads the same whether or not the video is saved, so it
@@ -264,159 +350,168 @@ var LABELS = {
   // This pattern is here for TikTok versions that do word the two differently.
   already_saved: /^remove\b|\b(saved|favou?rited)\b/i,
 
-  share: [
-    function () { return descMatches("(?i)^share video\\b.*"); },
-    function () { return descMatches("(?i)^share\\b.*"); }
-  ],
+  share: labels("d:(?i)^share video\\b.*", "d:(?i)^share\\b.*"),
 
   // ---- Inside the Share panel ----
   //
-  // What the panel actually contains, top to bottom:
-  //
   //   71%  "Send to", Search, Close
-  //   79%  real account names - pressing one sends them a private message
+  //   79%  real account names - pressing one messages them
   //   87%  Repost, COPY LINK, Messenger, WhatsApp, Facebook, Telegram, SMS
   //   96%  Report, Not interested, Download, Add to Story, Promote, Cast
   //
-  // Only "Copy link" is safe. Everything at 79% messages a person. Everything
-  // else at 87% leaves TikTok for another app. And "Not interested" at 96%,
-  // despite sounding harmless, tells the algorithm to show less of this kind
-  // of video - the opposite of what we are training it to do.
-  //
-  // Note the two rows are only 8% of the screen apart, about 220 pixels. That
-  // is why nothing in this panel is ever pressed by position: see pressStrict.
+  // Only "Copy link" is safe here. The two rows are 8% apart, about 220
+  // pixels, which is why nothing in this panel is pressed by position.
 
   // Present only while the panel is open, so it tells us whether it opened,
   // and more importantly whether it closed again.
-  share_panel_marker: [
-    function () { return descMatches("(?i)^bottom sheet$"); }
-  ],
+  share_panel_marker: labels("d:(?i)^bottom sheet$"),
 
   // The X in the top corner of the panel. This is how we get out: the back
   // action does not close it on Android 16.
-  share_panel_close: [
-    function () { return descMatches("(?i)^close$"); },
-    function () { return textMatches("(?i)^close$"); }
-  ],
+  share_panel_close: labels("(?i)^close$"),
 
   // The one safe thing to press. Matched exactly - no "contains" - so it can
   // never drift onto a neighbouring item.
-  share_sheet_safe_option: [
-    function () { return descMatches("(?i)^copy link$"); },
-    function () { return textMatches("(?i)^copy link$"); }
-  ],
+  share_sheet_safe_option: labels("(?i)^copy link$"),
+
+  // ---- Sending a video to one of our own accounts ----
+  //
+  // Once somebody is chosen the panel grows a message box at 86%, emoji at
+  // 91%, and "Send" at 96%. Choosing is not sending; Send is a second press.
+  //
+  // We match names, never positions, and we cannot read who is selected - so
+  // the guard is that Send must be ABSENT when the panel opens. See
+  // docs/WHAT-BROKE.md, "Sending to a person".
+
+  // Only appears once at least one person is chosen. Its absence when the
+  // panel opens is what tells us nothing is selected yet.
+  share_send_button: labels("(?i)^send$"),
+
+  // Never touched. Listed so it can be recognised and avoided.
+  share_message_box: labels("t:(?i)^write a message.*", "d:(?i)^write a message.*"),
+
+  // How far down the screen the people sit, as a percentage. Read off the
+  // panel, and only used to ignore everything outside it - the row of app
+  // icons underneath is 8% away, about 220 pixels.
+  share_people_band: [72, 86],
 
   // ---- The Comments panel ----
   //
-  // Opening comments to see what people are saying is ordinary behaviour, so
-  // we copy it. We only ever read: never comment, never reply, never like
-  // anyone's comment.
-  //
-  // This panel is the most dangerous screen in the app, and unusually so:
-  //
-  //   34%   "236 comments" header, and Close
-  //   36%   the comment list starts
-  //   41%   ...and mixed through it: Reply buttons, and hearts on each comment
+  //   34%   "236 comments", Close
+  //   36%   the list starts, with Reply buttons and hearts mixed through it
   //   93%   the list ends
-  //   97%   "Add comment..." text box, Stickers, Mention someone, Send Gift
+  //   97%   "Add comment...", Stickers, Mention someone, Send Gift
   //
-  // The hearts on each comment carry no readable name - TikTok labels them
-  // "@2131823235", a raw internal number it forgot to turn into words. So we
-  // cannot even recognise them to avoid them. Combined with Reply buttons
-  // sitting among the comments, and a Send Gift button that spends real money,
-  // the only safe rule is: inside this panel we scroll, and never tap.
+  // We read and never write. The hearts carry no readable name, so they cannot
+  // even be recognised to be avoided - and Send Gift spends real money. Inside
+  // this panel we scroll and never tap. See docs/WHAT-BROKE.md.
 
   // Unlike the Share panel, this one has no "Bottom sheet" marker. The text
   // box is what gives it away - nothing else on screen says "Add comment".
-  comment_panel_marker: [
-    function () { return textMatches("(?i)^add comment.*"); },
-    function () { return descMatches("(?i)^add comment.*"); }
-  ],
+  comment_panel_marker: labels("t:(?i)^add comment.*", "d:(?i)^add comment.*"),
 
-  comment_panel_close: [
-    function () { return descMatches("(?i)^close$"); },
-    function () { return textMatches("(?i)^close$"); }
-  ],
+  comment_panel_close: labels("(?i)^close$"),
 
-  comments: [
-    function () { return descMatches("(?i)^read or add comments\\b.*"); },
-    function () { return descMatches("(?i).*\\bcomments?\\b.*"); }
-  ],
+  comments: labels("d:(?i)^read or add comments\\b.*", "d:(?i).*\\bcomments?\\b.*"),
 
   // ---- Searching for a topic ----
   //
-  // The search screen taught us something that applies nowhere else in the
-  // app: a button can say it is pressable and still refuse to be pressed.
-  //
-  //   ImageView  desc "Search"  clickable=false   <- a magnifying glass
-  //   Button     text "Search"  clickable=true    <- the real button
-  //
-  // Choosing the Button and pressing it properly is REFUSED. TikTok built it
-  // to answer a real finger, not the press Android's accessibility layer
-  // offers. A tap at its own coordinates works. Note the two are told apart by
-  // desc versus text, not by name.
-  //
-  // Opening search is different again - that one does accept a proper press.
-  // Same screen, two buttons, two behaviours, so the flow uses both.
+  // Two buttons called "Search" on one screen, told apart by desc versus text.
+  // The submit one reports clickable=true and then refuses a proper press, so
+  // it gets a coordinate tap; opening search accepts one normally.
+  // See docs/WHAT-BROKE.md, "Some buttons refuse a proper press".
 
   // The magnifying glass at the top of the feed. The Share panel has a button
   // called "Search" too, so this is only ever looked for near the top.
-  search_entry: [
-    function () { return descMatches("(?i)^search$"); },
-    function () { return textMatches("(?i)^search$"); }
-  ],
+  search_entry: labels("(?i)^search$"),
 
   // The button that sends the search, beside the box. Matched on text, because
   // the magnifying glass beside it is the one carrying the desc.
-  search_submit: [
-    function () { return textMatches("(?i)^search$"); }
-  ],
+  search_submit: labels("t:(?i)^search$"),
 
   // Only on screen while TikTok is still offering suggestions, so it tells us
   // whether the search actually went through.
-  search_suggestions: [
-    function () { return textMatches("(?i)^press and hold on a suggestion.*"); }
-  ],
+  search_suggestions: labels("t:(?i)^press and hold on a suggestion.*"),
 
   // A result on the search results screen. TikTok labels each one
   // "Video by <creator>, <caption>, Liked by 39.1K users".
-  search_result: [
-    function () { return descMatches("(?i)^video by .*"); }
-  ],
+  search_result: labels("d:(?i)^video by .*"),
 
   // ---- Knowing we are on the For You feed ----
   //
-  // This caused a real bug worth remembering. The script used to decide it was
-  // on the feed by finding the Like button. But every video player has a Like
-  // button - search results, a creator's videos, all of them. After searching
-  // for a topic the script believed it was back on the feed while it was still
-  // inside the search results, and browsed there for the rest of the session,
-  // reporting success the whole time.
+  // "For You" names the feed and appears nowhere else. Not the Like button -
+  // every player has one - and not "Search", which the search screen also has.
+  // Both mistakes were made; see docs/WHAT-BROKE.md, "Knowing where we are".
+  feed_marker: labels("(?i)^for you$"),
+
+  // ---- The Inbox and one conversation ----
   //
-  // Comparing the two screens gave these labels present on the feed and absent
-  // from the search results player:
+  // The top of the list is not people - "New followers" and "Activity" come
+  // first - so names are matched against reply_to rather than taken by
+  // position. An unread row carries a small View whose label is a NUMBER, and
+  // a preview that does not start with "Sent". Matching the badge by size
+  // instead marks every row unread. See docs/WHAT-BROKE.md.
+
+  inbox_tab: labels("(?i)^inbox$"),
+
+  home_tab: labels("(?i)^home$"),
+
+  // Rows that look like conversations and are not. Opening any of these takes
+  // us to a different screen entirely.
+  not_a_conversation: /^(new followers|activity|system notifications|account not found)$/i,
+
+  // A display name we cannot tell apart from any other. TikTok shows "User" for
+  // accounts that never set a name, and several rows can say it at once.
+  unusable_name: /^(user|users)$/i,
+
+  // Labels TikTok forgot to turn into words. Instead of a description, the app
+  // hands us the name of the thing in its own code:
   //
-  //   7%   "For You"  "Following"  "Search"
-  //   99%  "Home"  "Friends"  "Create"  "Inbox"  "Profile"
+  //   "activebadgeis_active"        a badge saying somebody is online
+  //   "storybadgenone_trueicon"     a badge on the story ring
+  //   "@2131823255"                 a heart on a comment
   //
-  // "Search" looks tempting and is wrong: the search screen has one too, so a
-  // check using it reports success one step too early. It fooled the very
-  // probe written to find this out.
+  // They are never a name and never a message, but they sit in the same rows,
+  // and one of them was picked up as an account name. Skipped on sight.
+  internal_label: /^@?\d+$|badge|_active\b|icon$/i,
+
+  // A row's preview line. Ours, so the conversation has nothing new in it.
+  outgoing_preview: /^sent\b/i,
+
+  // ---- Inside a conversation ----
   //
-  // "For You" is the one to trust - it names the feed, and appears nowhere
-  // else. The bottom bar is a weaker backup, because the Profile and Inbox
-  // screens carry it as well.
-  feed_marker: [
-    function () { return descMatches("(?i)^for you$"); },
-    function () { return textMatches("(?i)^for you$"); }
-  ],
+  //   93%  Heart  Lol  ThumbsUp  Effects  Cards
+  //   97%  "Message..."
+  //
+  // The bar is there by default and vanishes only when the message box takes
+  // focus - so the rule that keeps it available is the rule that keeps us safe:
+  // never touch the box. All five report clickable=false with a clickable
+  // parent one level up, so pressStrict handles them. Never by position; that
+  // is what sent two stickers nobody asked for. See docs/WHAT-BROKE.md.
+
+  quick_send: {
+    Heart:    labels("^Heart$"),
+    Lol:      labels("^Lol$"),
+    ThumbsUp: labels("^ThumbsUp$")
+  },
+
+  // Every button on the bar. Used to check the bar is fully drawn before we
+  // press anything on it.
+  quick_send_all: ["Heart", "Lol", "ThumbsUp", "Effects", "Cards"],
+
+  // The message box. We look for it to confirm we are in a conversation, and to
+  // confirm the keyboard is shut - and then we leave it alone.
+  message_box: labels("t:(?i)^message\\.*$", "d:(?i)^message\\.*$"),
+
+  // A sticker already in the conversation. Counting these before and after is
+  // how we know a press sent one thing and not two.
+  sent_sticker: labels("(?i)^stickers$"),
 
   // If any of these appear, something needs a human. We stop.
-  stop_signals: [
-    function () { return textMatches("(?i).*(log in|sign up) to tiktok.*"); },
-    function () { return textMatches("(?i).*verify.*you.*human.*"); },
-    function () { return textMatches("(?i).*too many attempts.*"); }
-  ]
+  stop_signals: labels(
+    "t:(?i).*(log in|sign up) to tiktok.*",
+    "t:(?i).*verify.*you.*human.*",
+    "t:(?i).*too many attempts.*")
 };
 
 // TikTok ships under different package names by region. We try each in turn.
@@ -442,9 +537,13 @@ var stopRequested = false;
 // Both feed the note written for whoever checks the farm later.
 var endReason = "unknown";
 var consecutiveMisses = 0;
-var stats = { videos: 0, like: 0, save: 0, share: 0, comments: 0, seeded: 0,
+var stats = { videos: 0, like: 0, save: 0, share: 0, comments: 0, seeded: 0, replies: 0, sent: 0,
               back: 0, misses: 0 };
 var tiktokPackage = null;
+
+// Set once if tidyName ever has to fall back. Kept outside the function so
+// the warning appears a single time instead of on every row of every inbox.
+var warnedAboutNames = false;
 
 // ------------------------------------------------------ this phone's settings
 
@@ -776,18 +875,10 @@ function parseCount(text) {
 /**
  * Add the video to Favorites.
  *
- * This one needs care. Unlike the Like button, Favorites gives away nothing
- * about its state: the label reads "Add or remove this video from Favorites."
- * and the selected flag stays false whether or not the video is saved. So we
- * cannot ask TikTok whether we are about to save or un-save.
- *
- * Instead we watch the number printed under the button. Press it, and the
- * count goes up if we saved and down if we un-saved. If it went down we press
- * again straight away, putting the video back the way we found it.
- *
- * The catch: TikTok rounds anything over a thousand to "1.2K", which will not
- * visibly move by one. On those videos we cannot check, so we leave them
- * alone rather than risk removing a save.
+ * Favorites gives away nothing about its state, so we watch the count instead:
+ * press, and it goes up if we saved and down if we un-saved - and if it went
+ * down we press again to put it back. Counts rounded to "1.2K" will not move
+ * by one, so those videos are left alone. See docs/WHAT-BROKE.md.
  */
 function doSave() {
   var node = findOnScreen(LABELS.save);
@@ -885,30 +976,18 @@ function pressStrict(node) {
 }
 
 /**
- * Share the video by copying its link, which keeps everything inside TikTok.
+ * Share the video by copying its link, which keeps it inside TikTok.
  *
- * Two things make this the riskiest action in the script:
- *
- * First, the Share panel lists real people along the top. Pressing one sends
- * them a private message. Every press in here goes through pressStrict, which
- * refuses to tap a position blindly.
- *
- * Second, if the panel fails to close, every later swipe lands inside it and
- * the rest of the session is wasted. So we check that it actually closed, and
- * end the session if it did not.
+ * Every press here goes through pressStrict - the panel lists real people. And
+ * a panel that fails to close swallows every later swipe, so the session ends
+ * rather than carrying on blind.
  */
 /**
  * Find a button again, insisting it is the same one as before.
  *
- * Pressing a button makes TikTok redraw, and while it does there can be two
- * matching buttons in play: the video we are working on, and the next one.
- * Searching again without checking position can quietly hand back the wrong
- * video's button - and then a count read off it means nothing.
- *
- * That matters most where a count decides whether to press again. Reading the
- * wrong video's count there would cause the very damage the check exists to
- * prevent. So we require the button to be back in the same place, give or take
- * a few pixels.
+ * While TikTok redraws there are two matching buttons in play - this video's
+ * and the next one's. Where a count decides whether to press again, reading the
+ * wrong one causes the very damage the check exists to prevent.
  */
 function findSameButtonAgain(candidates, wasAtX, wasAtY, tolerancePx) {
   var deadline = Date.now() + 2000;
@@ -1124,6 +1203,638 @@ function doShare() {
   return true;
 }
 
+/**
+ * Send this video to one of our own accounts.
+ *
+ * This is the one thing the script does that reaches a person and cannot be
+ * undone, so read the guards before changing anything here.
+ *
+ * The order matters. Nothing is pressed until the panel has been checked for a
+ * selection that was already there, because this panel holds several people at
+ * once and we have no way to see who is in it.
+ */
+function doSendToFriend() {
+  var settings = SETTINGS.send_to_friend;
+  var allowed = settings.send_to || [];
+  if (allowed.length === 0) return false;
+
+  var shareButton = findOnScreen(LABELS.share, 1200);
+  if (!shareButton) {
+    noteMiss();
+    return false;
+  }
+
+  humanPause(300, 900);
+  if (!pressStrict(shareButton)) {
+    noteMiss();
+    return false;
+  }
+  sleep(rndInt(1000, 1700));
+
+  if (!sharePanelIsOpen(1200)) {
+    log("  send: the panel did not open, skipping");
+    return false;
+  }
+
+  // Nothing may be selected yet. If Send is already on screen then somebody is
+  // in the selection, and since we cannot read who, adding our account to it
+  // would send the video to them as well.
+  if (findOnScreen(LABELS.share_send_button, 500)) {
+    log("  send: somebody is already selected in the panel - backing out");
+    closeSharePanel();
+    return false;
+  }
+
+  // Read the row into one entry per person. TikTok draws two for each - the
+  // full name and a shortened copy - so the first one seen wins and the rest
+  // only add to the count.
+  var band = LABELS.share_people_band;
+  var items = screenItems();
+  var people = [];
+  var seen = {};
+
+  for (var i = 0; i < items.length; i++) {
+    var it = items[i];
+    if (it.y < band[0] || it.y > band[1]) continue;
+    if (it.className.indexOf("Button") < 0) continue;
+
+    var name = tidyName(it.label);
+    if (!name) continue;
+    if (nameIsOn(settings.never_send_to, name)) continue;   // blocked outright
+
+    if (seen[name]) { seen[name].count++; continue; }
+    seen[name] = { name: name, label: it.label, node: it.node, count: 1,
+                   onList: nameIsOn(allowed, name) };
+    people.push(seen[name]);
+  }
+
+  // Split into accounts we own and everybody else, because they are not
+  // interchangeable: one is somewhere a mistake costs nothing, the other is a
+  // real person who never asked to hear from a script.
+  var onList = [], others = [];
+  for (var p = 0; p < people.length; p++) {
+    (people[p].onList ? onList : others).push(people[p]);
+  }
+
+  var target = null;
+  var goingWide = settings.allow_anyone && others.length > 0 &&
+                  chance(settings.chance_of_anyone);
+
+  if (onList.length > 0 && !goingWide) {
+    target = onList[rndInt(0, onList.length - 1)];
+  } else if (goingWide) {
+    target = others[rndInt(0, others.length - 1)];
+    log('  send: going outside the list to "' + target.label + '"');
+  } else if (onList.length > 0) {
+    target = onList[rndInt(0, onList.length - 1)];
+  }
+
+  if (!target) {
+    log("  send: nobody we may send to is in the panel on this video");
+    closeSharePanel();
+    return false;
+  }
+
+  // Two entries per person is normal. More than that means we are matching
+  // something we have not understood, and the middle of an action that cannot
+  // be undone is the wrong place to find out what.
+  if (target.count > 2) {
+    log("  send: " + target.count + ' entries match "' + target.label +
+        '" - too ambiguous, backing out');
+    closeSharePanel();
+    return false;
+  }
+
+  var chosenName = target.label;
+  var wasAt;
+  try {
+    wasAt = { x: target.node.bounds().centerX(), y: target.node.bounds().centerY() };
+  } catch (e) {
+    closeSharePanel();
+    return false;
+  }
+
+  // Look again before pressing, and insist it is the same entry in the same
+  // place. This is the only window in which the row could reorder under us,
+  // and the cost of that would be a video sent to a stranger.
+  humanPause(400, 900);
+  var again = findSameButtonAgain(
+    [function () { return descMatches("(?i)^" + escapeForMatch(chosenName) + "$"); },
+     function () { return textMatches("(?i)^" + escapeForMatch(chosenName) + "$"); }],
+    wasAt.x, wasAt.y, 40);
+
+  if (!again) {
+    log('  send: "' + chosenName + '" moved between looking and pressing');
+    closeSharePanel();
+    return false;
+  }
+
+  if (!pressStrict(again)) {
+    log("  send: could not select " + chosenName + " properly");
+    closeSharePanel();
+    return false;
+  }
+  sleep(rndInt(1200, 2000));
+
+  // Selecting somebody is what makes Send appear. No Send means nothing was
+  // selected, and pressing on would be pressing blind.
+  var send = findOnScreen(LABELS.share_send_button, 1500);
+  if (!send) {
+    log("  send: no Send button appeared - nothing was selected, backing out");
+    closeSharePanel();
+    return false;
+  }
+
+  // A moment to look at what is being sent, the way a person would. The
+  // message box beside it is never touched.
+  humanPause(600, 1600);
+
+  var sent = pressStrict(send);
+  if (!sent) {
+    log("  send: could not press Send - backing out without sending");
+    closeSharePanel();
+    return false;
+  }
+
+  sleep(rndInt(1500, 2400));
+  stats.sent++;
+  noteHit();
+  log("  send: sent this video to " + chosenName);
+
+  // The panel usually closes itself once the video has gone. Make sure.
+  if (sharePanelIsOpen(800) && !closeSharePanel()) {
+    console.error("  send: the panel will not close - ending the session");
+    stopRequested = true;
+    return false;
+  }
+
+  return true;
+}
+
+/** Make a name safe to put inside a pattern. */
+function escapeForMatch(text) {
+  return String(text).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Is this tidied name one of the names in the list? */
+function nameIsOn(list, tidiedName) {
+  if (!list || !tidiedName) return false;
+  for (var i = 0; i < list.length; i++) {
+    if (tidyName(list[i]) === tidiedName) return true;
+  }
+  return false;
+}
+
+// ------------------------------------------------------------------- messages
+
+/**
+ * Everything on screen, flattened, with the position of each item.
+ *
+ * The inbox is built from rows, and a row's name, unread badge and preview line
+ * are separate items that only belong together because they sit at the same
+ * height. So we need the whole screen at once, not one lookup at a time.
+ */
+function screenItems() {
+  var items = [];
+
+  function walk(node, depth) {
+    if (!node || depth > 45) return;
+    try {
+      if (isOnScreen(node)) {
+        var b = node.bounds();
+        var desc = node.desc();
+        var text = node.text();
+        items.push({
+          node: node,
+          label: (desc && desc !== "null") ? desc : (text || ""),
+          className: node.className() || "",
+          y: Math.round((b.centerY() / device.height) * 100),
+          widthPercent: Math.round((b.width() / device.width) * 100)
+        });
+      }
+      var children = node.children();
+      for (var i = 0; i < children.length; i++) walk(children[i], depth + 1);
+    } catch (e) { /* skip anything unreadable */ }
+  }
+
+  try { walk(auto.root, 0); } catch (e) { /* no tree at all */ }
+  return items;
+}
+
+/**
+ * How many things on screen carry this label.
+ *
+ * Counting stickers before and after a press is how we know the press sent one
+ * and not two. A press that fires twice would otherwise look like success.
+ */
+function countMatching(pattern) {
+  var items = screenItems();
+  var n = 0;
+  for (var i = 0; i < items.length; i++) {
+    if (pattern.test(items[i].label)) n++;
+  }
+  return n;
+}
+
+/** Are we looking at the inbox list, rather than a conversation? */
+function onTheInbox() {
+  if (!isTikTokOnScreen()) return false;
+  if (findOnScreen(LABELS.message_box, 400)) return false;   // a conversation
+  return findOnScreen(LABELS.inbox_tab, 600) !== null;
+}
+
+/**
+ * Read the inbox into one entry per conversation.
+ *
+ * Rows are found by grouping everything into horizontal bands. Anything within
+ * a few percent of the same height belongs to the same row.
+ */
+function readInboxRows() {
+  var items = screenItems();
+  var bands = [];
+
+  for (var i = 0; i < items.length; i++) {
+    var it = items[i];
+    if (it.y < 15 || it.y > 92) continue;      // header and the bottom tabs
+
+    var placed = null;
+    for (var b = 0; b < bands.length; b++) {
+      if (Math.abs(bands[b].y - it.y) <= 4) { placed = bands[b]; break; }
+    }
+    if (!placed) {
+      placed = { y: it.y, members: [] };
+      bands.push(placed);
+    }
+    placed.members.push(it);
+  }
+
+  var rows = [];
+  for (var n = 0; n < bands.length; n++) {
+    var members = bands[n].members;
+    var name = null, unread = 0, preview = "", pressable = null;
+
+    // A row reads: name, the same name again inside the avatar, the unread
+    // count, the message, the time. The name is always FIRST - picking the
+    // longest piece of text instead turns the message into the name, and broke
+    // the check that keeps us off the "New followers" screen.
+    // See docs/WHAT-BROKE.md.
+    for (var m = 0; m < members.length; m++) {
+      var item = members[m];
+      var label = item.label;
+      if (!label) continue;
+
+      // The unread count: a small View whose whole label is a number.
+      if (/^\d+$/.test(label) && item.widthPercent <= 8) {
+        unread = parseInt(label, 10);
+        continue;
+      }
+
+      // Timestamps, and labels TikTok forgot to turn into words - things like
+      // "activebadgeis_active" and "storybadgenone_trueicon". They are never a
+      // name and never a message.
+      if (/^\s*·/.test(label) || LABELS.internal_label.test(label)) continue;
+
+      if (!name) {
+        name = label;              // first text in the row wins
+      } else if (!preview && tidyName(label) !== tidyName(name)) {
+        // The name appears twice - once as the heading and again inside the
+        // avatar, where it stands in for a missing profile picture. Skipping
+        // the repeat is what leaves the message itself as the preview.
+        preview = label;
+      }
+    }
+
+    // The row itself is full width. The avatar next to it is pressable too, and
+    // pressing that opens the person's profile instead of the conversation.
+    for (var p = 0; p < members.length; p++) {
+      try {
+        if (members[p].node.clickable() && members[p].widthPercent >= 80) {
+          pressable = members[p].node;
+          break;
+        }
+      } catch (e) { /* skip */ }
+    }
+
+    if (name) {
+      rows.push({ name: name, unread: unread, preview: preview,
+                  y: bands[n].y, node: pressable });
+    }
+  }
+
+  return rows;
+}
+
+/**
+ * Tidy a display name so two spellings of the same name match.
+ *
+ * TikTok puts an invisible character in front of every name in the inbox - the
+ * left-to-right mark, U+200E, which decides which way mixed text reads. It does
+ * not show up on screen and it does not show up when you copy the name, but it
+ * is there in what we read, and a plain comparison against a name typed into
+ * the settings file would fail every time for a reason nobody could see.
+ *
+ * The pattern is written in numbers, never as the characters themselves.
+ * Typed in directly it reads as an empty pair of brackets, works on a laptop,
+ * and on the phone deletes every name it is given. See docs/WHAT-BROKE.md.
+ */
+function tidyName(name) {
+  if (!name) return "";
+
+  var out = String(name)
+    .replace(/[\u200E\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+
+  // If cleaning emptied a name that was not empty, the pattern above is doing
+  // something other than what it says. Fall back to the plain version rather
+  // than hand back an empty string, and say so - the fault that hid last time
+  // hid because nothing complained.
+  if (!out) {
+    if (!warnedAboutNames) {
+      warnedAboutNames = true;
+      console.error("tidyName emptied \"" + name + "\" - the pattern is wrong " +
+                    "on this phone. Falling back to a plain comparison.");
+    }
+    out = String(name).replace(/\s+/g, " ").trim().toLowerCase();
+  }
+
+  return out;
+}
+
+/** Is this a row we are allowed to open? */
+function mayReplyTo(row) {
+  if (!row.name) return false;
+  if (LABELS.not_a_conversation.test(row.name)) return false;
+  if (LABELS.unusable_name.test(row.name)) return false;
+  if (row.unread < 1) return false;
+
+  var wanted = tidyName(row.name);
+  if (!wanted) return false;
+
+  var allowed = SETTINGS.messages.reply_to || [];
+  for (var i = 0; i < allowed.length; i++) {
+    if (tidyName(allowed[i]) === wanted) return true;
+  }
+  return false;
+}
+
+/**
+ * Send one sticker in the conversation that is already open.
+ *
+ * Every check here earns its place. An earlier version of this decided what to
+ * press by position - "whatever sits above the message box" - caught a button
+ * from this very bar, and sent two stickers nobody asked for.
+ */
+function reactInConversation(expectedName) {
+  // The right conversation. Anything else and we do nothing.
+  var header = null;
+  var items = screenItems();
+  for (var i = 0; i < items.length; i++) {
+    if (items[i].y <= 12 && tidyName(items[i].label) === tidyName(expectedName)) {
+      header = items[i];
+      break;
+    }
+  }
+  if (!header) {
+    log("  messages: this is not " + expectedName + " - leaving it alone");
+    return false;
+  }
+
+  // The message box must be empty and low on screen. Anywhere else means the
+  // keyboard is up or a panel is open, and the bar will not be there.
+  var box = findOnScreen(LABELS.message_box, 800);
+  if (!box) {
+    log("  messages: no message box - not a conversation");
+    return false;
+  }
+
+  // The whole bar has to be drawn before we press any of it.
+  for (var b = 0; b < LABELS.quick_send_all.length; b++) {
+    var name = LABELS.quick_send_all[b];
+    var found = false;
+    for (var j = 0; j < items.length; j++) {
+      if (items[j].label === name) { found = true; break; }
+    }
+    if (!found) {
+      log("  messages: the send bar is incomplete (no " + name + ") - skipping");
+      return false;
+    }
+  }
+
+  var choices = SETTINGS.messages.reactions || [];
+  if (choices.length === 0) return false;
+  var choice = choices[rndInt(0, choices.length - 1)];
+  var matchers = LABELS.quick_send[choice];
+  if (!matchers) {
+    log("  messages: " + choice + " is not one we have checked - skipping");
+    return false;
+  }
+
+  var button = findOnScreen(matchers, 900);
+  if (!button) {
+    noteMiss();
+    return false;
+  }
+
+  var wasAt;
+  try {
+    wasAt = { x: button.bounds().centerX(), y: button.bounds().centerY() };
+  } catch (e) {
+    return false;
+  }
+
+  // Look again before pressing. Nothing on these screens is assumed to hold
+  // still: the sticker shelf was seen relabelling itself between two readings
+  // a minute and a half apart, with nobody touching the phone.
+  humanPause(500, 1100);
+  var again = findSameButtonAgain(matchers, wasAt.x, wasAt.y, 40);
+  if (!again) {
+    log("  messages: the " + choice + " button moved - not pressing");
+    return false;
+  }
+
+  var before = countMatching(/^stickers$/i);
+
+  // pressStrict, never pressNode: pressNode falls back to tapping a position,
+  // and a position on this screen is how the accident happened.
+  if (!pressStrict(again)) {
+    log("  messages: could not press " + choice + " properly - nothing sent");
+    noteMiss();
+    return false;
+  }
+
+  sleep(rndInt(1800, 2600));
+
+  var after = countMatching(/^stickers$/i);
+  if (after === before + 1) {
+    log("  messages: sent " + choice + " to " + expectedName);
+    stats.replies++;
+    noteHit();
+    return true;
+  }
+
+  if (after > before + 1) {
+    console.error("  messages: one press produced " + (after - before) +
+                  " stickers - switching messages off for this session");
+    SETTINGS.messages.enabled = false;
+    return false;
+  }
+
+  log("  messages: pressed " + choice + " but nothing arrived");
+  noteMiss();
+  return false;
+}
+
+/**
+ * Check the inbox at the start of a session and reply to a few people.
+ *
+ * Returns to the feed whatever happens. Getting stranded in the inbox would
+ * cost the whole session.
+ */
+function doCheckMessages() {
+  var settings = SETTINGS.messages;
+  if (!settings.enabled) return;
+  if (!settings.reply_to || settings.reply_to.length === 0) return;
+  if (!chance(settings.chance_of_checking)) return;
+
+  // Wait for the feed rather than giving up the moment it is not there yet.
+  //
+  // TikTok takes a few seconds to draw the feed after it opens, and a check
+  // made too early answers "not the feed". That skipped the whole thing on one
+  // run and said nothing about it - the log jumped straight from "Opening
+  // TikTok" to the first video, and the only way to notice was that a line was
+  // missing. Silence is the worst way for a feature to fail.
+  var readyBy = Date.now() + 8000;
+  while (!onTheFeed() && Date.now() < readyBy) sleep(600);
+  if (!onTheFeed()) {
+    log("  messages: the feed has not come up - skipping messages this session");
+    return;
+  }
+
+  log("Checking messages first");
+
+  var tab = findOnScreen(LABELS.inbox_tab, 1200);
+  if (!tab || !pressStrict(tab)) {
+    log("  messages: could not open the inbox");
+    return;
+  }
+  sleep(rndInt(1400, 2200));
+
+  if (!onTheInbox()) {
+    log("  messages: the inbox did not open");
+    backToFeedFromInbox();
+    return;
+  }
+
+  var rows = readInboxRows();
+  var wanted = [];
+  for (var i = 0; i < rows.length; i++) {
+    if (mayReplyTo(rows[i])) wanted.push(rows[i]);
+  }
+
+  log("  messages: " + rows.length + " conversations, " + wanted.length +
+      " unread from people we reply to");
+
+  // When nothing matches, say what WAS unread. Otherwise the only clue is a
+  // zero, and there is no way to tell "nothing has come in" apart from "the
+  // name in the settings file is spelled differently to the name on screen".
+  if (wanted.length === 0) {
+    var unread = [];
+    for (var u = 0; u < rows.length; u++) {
+      if (rows[u].unread > 0 && !LABELS.not_a_conversation.test(rows[u].name)) {
+        unread.push('"' + rows[u].name + '" -> compared as "' +
+                    tidyName(rows[u].name) + '"  says: "' + rows[u].preview + '"');
+      }
+    }
+    if (unread.length > 0) {
+      var listed = [];
+      for (var a = 0; a < (settings.reply_to || []).length; a++) {
+        listed.push('"' + tidyName(settings.reply_to[a]) + '"');
+      }
+      log("  messages: reply_to holds " + listed.length + ": " + listed.join(", "));
+      log("  messages: unread, but not on the reply_to list:");
+      for (var v = 0; v < unread.length; v++) log("      " + unread[v]);
+      log("    (name first, then what the message says - if those two look");
+      log("     swapped, the rows are being read wrongly)");
+    }
+  }
+
+  var limit = Math.min(wanted.length, settingValue(settings.max_replies));
+
+  for (var w = 0; w < limit && !stopRequested; w++) {
+    var row = wanted[w];
+
+    // Read the list again and make sure this row still says what it said. The
+    // inbox is a recycling list: it fills rows in as their pictures arrive, and
+    // a row read too early can still be carrying the previous row's name.
+    var fresh = readInboxRows();
+    var confirmed = null;
+    for (var f = 0; f < fresh.length; f++) {
+      if (fresh[f].name === row.name && Math.abs(fresh[f].y - row.y) <= 4) {
+        confirmed = fresh[f];
+        break;
+      }
+    }
+    if (!confirmed || !confirmed.node || !mayReplyTo(confirmed)) {
+      log("  messages: " + row.name + " is not where it was - skipping");
+      continue;
+    }
+
+    if (!pressStrict(confirmed.node)) {
+      log("  messages: could not open " + row.name);
+      continue;
+    }
+    sleep(rndInt(1500, 2400));
+
+    // Reading it takes a moment, whether or not we answer.
+    humanPause(1200, 3200);
+
+    if (chance(settings.chance_of_replying)) {
+      reactInConversation(row.name);
+    } else {
+      log("  messages: read " + row.name + ", left it without replying");
+    }
+
+    humanPause(600, 1500);
+    back();
+    sleep(rndInt(1000, 1700));
+
+    if (!onTheInbox()) {
+      log("  messages: lost the inbox - going back to the feed");
+      break;
+    }
+  }
+
+  backToFeedFromInbox();
+}
+
+/**
+ * Get back to the feed from the inbox.
+ *
+ * The inbox is a tab, not a panel, so the back action is not what returns us -
+ * pressing Home is. We check we actually arrived, because browsing the wrong
+ * screen for a whole session has happened before.
+ */
+function backToFeedFromInbox() {
+  for (var attempt = 0; attempt < 3; attempt++) {
+    if (onTheFeed()) return true;
+
+    var home = findOnScreen(LABELS.home_tab, 900);
+    if (home) {
+      pressStrict(home);
+    } else {
+      back();
+    }
+    sleep(rndInt(1200, 1900));
+  }
+
+  if (onTheFeed()) return true;
+
+  // Still lost. returnToFeed presses back, checking before each press.
+  return returnToFeed(4);
+}
+
 // ---------------------------------------------------------------- app state
 
 function detectTikTokPackage() {
@@ -1265,6 +1976,15 @@ function runSession(minutes) {
     if (chance(activeRates.read_comments)) doReadComments();
     if (chance(activeRates.share)) doShare();
 
+    // Sending a video to one of our own accounts. Capped for the session as
+    // well as being rare per video: one account posting a stream of videos to
+    // another all evening is a pattern, and not a human one.
+    if (SETTINGS.send_to_friend.enabled &&
+        stats.sent < SETTINGS.send_to_friend.max_per_session &&
+        chance(SETTINGS.send_to_friend.rate)) {
+      doSendToFriend();
+    }
+
     // A short beat before moving on, as if deciding.
     humanPause(200, 900);
 
@@ -1307,6 +2027,8 @@ function printSummary(startedAt) {
   console.log("Saved          : " + stats.save);
   console.log("Shared         : " + stats.share);
   console.log("Comments read  : " + stats.comments);
+  if (stats.replies > 0) console.log("Replied to     : " + stats.replies);
+  if (stats.sent > 0)    console.log("Sent to friend : " + stats.sent);
   if (stats.seeded > 0) console.log("Topic searched : yes");
   console.log("Swiped back    : " + stats.back);
   console.log("Ended because  : " + endReason);
@@ -1607,6 +2329,8 @@ function writeStatus(startedAt) {
     saved: stats.save,
     shared: stats.share,
     comments_read: stats.comments,
+    replied: stats.replies,
+    sent_to_friend: stats.sent,
     searched_topic: stats.seeded > 0,
     buttons_not_found: stats.misses
   };
@@ -1783,7 +2507,7 @@ function isWithinActiveHours() {
 function runOneSession() {
   var minutes = settingValue(SETTINGS.session_minutes);
 
-  stats = { videos: 0, like: 0, save: 0, share: 0, comments: 0, seeded: 0,
+  stats = { videos: 0, like: 0, save: 0, share: 0, comments: 0, seeded: 0, replies: 0, sent: 0,
             back: 0, misses: 0 };
   endReason = "unknown";
   consecutiveMisses = 0;
@@ -1800,17 +2524,22 @@ function runOneSession() {
 
   var startedAt = Date.now();
   try {
+    // Messages first, the way somebody checks what came in before they start
+    // scrolling. It returns to the feed whatever happens.
+    doCheckMessages();
+
     if (shouldSeedNow()) doSeedTopic();
 
-    // Searching for a topic takes a couple of minutes, and it counts as part
-    // of the session rather than being added on top - otherwise a session that
-    // seeds runs noticeably longer than the schedule planned for it. Always
-    // leave a little time for ordinary browsing afterwards.
-    var spentSeeding = (Date.now() - startedAt) / 60000;
-    var leftToBrowse = Math.max(1, minutes - spentSeeding);
-    if (spentSeeding > 0.5) {
-      log("Searching took " + spentSeeding.toFixed(1) + " min, so browsing for "
-          + leftToBrowse.toFixed(1) + " min");
+    // Searching for a topic takes a couple of minutes, and checking messages
+    // takes a moment too. Both count as part of the session rather than being
+    // added on top - otherwise a session that does them runs noticeably longer
+    // than the schedule planned for it. Always leave a little time for
+    // ordinary browsing afterwards.
+    var spentBefore = (Date.now() - startedAt) / 60000;
+    var leftToBrowse = Math.max(1, minutes - spentBefore);
+    if (spentBefore > 0.5) {
+      log("Messages and searching took " + spentBefore.toFixed(1) +
+          " min, so browsing for " + leftToBrowse.toFixed(1) + " min");
     }
 
     if (!stopRequested) runSession(leftToBrowse);
