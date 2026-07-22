@@ -1,0 +1,16 @@
+# Local tool settings, specific to one machine.
+.claude/settings.local.json
+
+# Anything pulled off the phones. The phones are the source of truth for these,
+# and they change every session.
+*.jsonl
+farm_status.json
+farm_state.json
+logs/
+
+# Editor and OS leftovers.
+*.swp
+*~
+.DS_Store
+.idea/
+.vscode/

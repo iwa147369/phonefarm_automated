@@ -1,0 +1,19 @@
+{
+  "_comment": "The development phone. Schedule is on, with a window in the small hours, so the script should refuse to browse and say so. Change active_hours to test the other half.",
+
+  "device_id": "xiaomi-test",
+  "adb_serial": "VC7PSS8LNJINY9HY",
+
+  "session_minutes": [3, 5],
+
+  "schedule": {
+    "enabled": true,
+    "active_hours": [[22, 23]],
+    "sessions_per_day": [2, 3],
+    "gap_minutes": [5, 10]
+  },
+
+  "seed": {
+    "keywords": []
+  }
+}

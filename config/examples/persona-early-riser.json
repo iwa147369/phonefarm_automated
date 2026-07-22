@@ -1,0 +1,32 @@
+{
+  "_comment": "Copy this into config/devices/, give it a name, and fill in adb_serial. Someone who checks TikTok over breakfast and again at lunch, and is asleep by ten.",
+
+  "device_id": "CHANGE-ME",
+  "adb_serial": "CHANGE-ME",
+
+  "session_minutes": [6, 16],
+
+  "rates": {
+    "like": 0.14,
+    "save": 0.03,
+    "read_comments": 0.04,
+    "share": 0.005
+  },
+
+  "schedule": {
+    "enabled": true,
+    "active_hours": [[6, 8], [12, 13], [18, 21]],
+    "sessions_per_day": [3, 4],
+    "gap_minutes": [60, 210],
+    "chance_of_lazy_day": 0.20
+  },
+
+  "seed": {
+    "enabled": true,
+    "keywords": ["CHANGE-ME"]
+  },
+
+  "ramp_up": {
+    "account_started": "2026-07-01"
+  }
+}
