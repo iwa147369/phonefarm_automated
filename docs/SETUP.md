@@ -222,6 +222,54 @@ a candidate and then used it to confirm it was back on the feed — but the sear
 screen has a "Search" label too, so it stopped one screen early. Read its output
 rather than trusting its conclusion.
 
+## The messages probes
+
+These four worked out how to reply to a message and how to send a video to
+somebody. Read them in this order — each answers what the one before it
+uncovered.
+
+**`probe_dm_state.js`** — reads the inbox and one conversation, and touches
+nothing at all. No press of any kind; you can check that yourself with
+`grep -nE "click|press|gesture" probe_dm_state.js`. It answered three questions
+at once: how an unread conversation is marked, what makes the quick-reply bar
+appear, and whether its buttons can be pressed properly.
+
+Run it several times in different states — on the inbox, on a conversation just
+opened, after touching the message box, after closing the keyboard. Each run
+prints one `STATE:` line, and comparing those lines is the whole point.
+
+**`probe_tidyname.js`** — proves that cleaning an account name works *on the
+phone*. It sounds trivial and is not: the first version worked on a laptop and
+deleted every name it was given on the phone. Run it after any change to how
+names are compared.
+
+**`probe_send_reaction.js`** — **sends a sticker.** That cannot be taken back,
+so it runs five checks first and refuses if any fails: the right conversation by
+name, an empty message box in its usual place, all five bar buttons drawn, and
+the chosen button still where it was a moment ago. There is deliberately no
+fallback — if a proper press will not work, it stops rather than tapping a
+screen position.
+
+Set `ONLY_IN_CONVERSATION` at the top to one of your own accounts before running
+it. It refuses to run anywhere else.
+
+## The sharing probes
+
+**`probe_sticker_picker.js`** — opens the sticker grid, reads it, and presses
+nothing inside. It is kept because it is the evidence for *not* using stickers:
+13 of them, none with a label, in a grid that scrolls, under a pack strip that
+reorders itself, with no Send step.
+
+**`probe_share_to_user.js`** — reads the share panel's row of people, waits a
+minute, and reads it again to see whether it moved. Also opens the panel's own
+search. **It presses no person and no Send.**
+
+**`probe_share_select.js`** — chooses one person by exact name and then stops,
+which is how we learned what the send button is called. It will only ever choose
+the name written into `SHARE_TO` at the top of the file, so set that to an
+account you own. If it turns out that choosing sends after all, the video should
+land somewhere harmless.
+
 ---
 
 # Known unknowns

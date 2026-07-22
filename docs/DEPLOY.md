@@ -107,6 +107,13 @@ you are finished:
 adb shell 'rm -f /sdcard/脚本/probe_*.js'
 ```
 
+**Do this every time.** Most probes only read the screen, but two of them do
+something that cannot be undone — `probe_send_reaction.js` sends a sticker and
+`probe_share_select.js` chooses somebody in the share panel. Both are fenced so
+they only ever touch an account you named in the file, and neither belongs on a
+phone that is going to be left running. An earlier probe, since deleted, sent
+two stickers nobody asked for; `docs/WHAT-BROKE.md` has the story.
+
 This is the loop you want while developing: edit on the laptop, run one command,
 watch the phone.
 

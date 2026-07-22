@@ -9,7 +9,7 @@
  *
  * WHAT WENT WRONG LAST TIME, AND WHAT STOPS IT HERE
  *
- * probe_messages.js sent two stickers nobody asked for. It picked its target
+ * An earlier probe sent two stickers nobody asked for. It picked its target
  * by position ("anything above the message box is a message"), caught a
  * button instead, and when that button refused a real press it fell back to
  * holding a screen position for 700ms. Three guards come from that:
