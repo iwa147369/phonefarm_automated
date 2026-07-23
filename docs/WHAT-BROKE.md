@@ -390,13 +390,33 @@ refusing to start. Nothing restarts this script, so a phone that wrongly stands
 down is idle until a human notices. Running twice is bad; running never is
 worse.
 
-**What it does not catch.** Copies are matched by the file they were started
-from. A stale copy left in a second folder is a different path, so two copies
-would still run side by side without either noticing. That is the older problem
-described in `DEPLOY.md` - keep exactly one copy on the phone - and this check
-does not replace it. Matching on path is what makes the check free of a lock
-file, so the two failures are worth keeping apart rather than trying to solve
-both at once.
+**It matched them by name, and the name is not unique.** `/sdcard` is a link to
+`/storage/emulated/0`, so the same file has two spellings. Starting from the
+AutoJs6 file list gives one; starting with `tools/run.sh` gives the other. The
+check compared them as text, decided they were different scripts, and let both
+run.
+
+That is not a corner case, it is the ordinary way a farm gets used: somebody
+starts a phone by hand, and later somebody pushes an update from a laptop. On
+2026-07-23 two copies ran on farm-04 all evening while the check written to stop
+exactly that watched them do it:
+
+```
+id  4   /storage/emulated/0/脚本/main.js
+id 11   /sdcard/脚本/main.js
+```
+
+Both names now go through `java.io.File.getCanonicalPath()` before being
+compared, which resolves the link and leaves one spelling. That was measured on
+the phone before being relied on, and then confirmed by starting a second copy
+the other way and watching it stand down.
+
+**What it still does not catch.** A real second copy of the script, in a
+different folder, is a different file - two of those would run side by side
+without either noticing. That is the older problem described in `DEPLOY.md`:
+keep exactly one copy on the phone. Matching on path is what makes this check
+free of a lock file, so the two failures are worth keeping apart rather than
+trying to solve both at once.
 
 ---
 
