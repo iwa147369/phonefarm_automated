@@ -172,9 +172,26 @@ var LABELS = {
   // whether the search actually went through.
   search_suggestions: labels("t:(?i)^press and hold on a suggestion.*"),
 
-  // A result on the search results screen. TikTok labels each one
-  // "Video by <creator>, <caption>, Liked by 39.1K users".
-  search_result: labels("d:(?i)^video by .*"),
+  // A result on the search results screen. The two TikTok builds do not agree
+  // on what a result even is, so both are listed and whichever matches wins.
+  //
+  // On com.ss.android.ugc.trill each result is one node carrying the whole
+  // thing: "Video by <creator>, <caption>, Liked by 39.1K users".
+  //
+  // On com.zhiliaoapp.musically there is no such label anywhere. A result is a
+  // cell built from several separate buttons - the caption, the account name,
+  // the date, and the play count - and the play count is the only one of them
+  // with a shape worth matching: "x17.6K", one per result. Measured on a Galaxy
+  // A8+ by probe_search_result.js, which also pressed it and watched a video
+  // open. The caption would work too, but its text is whatever somebody typed.
+  //
+  // The digits are spelled out as [0-9] rather than written \d, and that is not
+  // a style choice. These patterns are ordinary strings, and the first version
+  // of this line reached the phone holding a single backslash - which
+  // JavaScript reads as a plain "d". The pattern quietly became "x followed by
+  // the letters d, dot or comma" and matched nothing at all, while looking
+  // perfectly correct in the file. Spelling it out cannot fail that way.
+  search_result: labels("d:(?i)^video by .*", "(?i)^x[0-9.,]+[kmb]?$"),
 
   // ---- Knowing we are on the For You feed ----
   //

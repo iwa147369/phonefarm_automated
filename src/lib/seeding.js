@@ -144,13 +144,20 @@ function doSeedTopic() {
   }
 
   // --- open one of the results ---
+  // Every way of naming a result is tried, not just the first. The two TikTok
+  // builds lay this screen out differently, and reading only the first pattern
+  // is what made the farm phones announce "no results on screen" while the
+  // results sat there in plain sight.
   var results = [];
-  try {
-    var found = LABELS.search_result[0]().find();
-    for (var j = 0; j < found.length; j++) {
-      if (isOnScreen(found[j])) results.push(found[j]);
-    }
-  } catch (e) { /* handled below */ }
+  for (var m = 0; m < LABELS.search_result.length; m++) {
+    try {
+      var found = LABELS.search_result[m]().find();
+      for (var j = 0; j < found.length; j++) {
+        if (isOnScreen(found[j])) results.push(found[j]);
+      }
+    } catch (e) { /* try the next way of naming one */ }
+    if (results.length > 0) break;
+  }
 
   if (results.length === 0) {
     log("  seed: no results on screen");
