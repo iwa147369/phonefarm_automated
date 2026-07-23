@@ -19,9 +19,8 @@
  *      an absolute path, and the folder on the phone can never move.
  *   3. It finds a file in a subfolder, so modules can live in their own place
  *      rather than being scattered through /sdcard/脚本 next to the probes.
- *   4. Loading the same module twice gives back the same object. A shared
- *      state module is worthless if each caller gets a fresh copy - main.js
- *      keeps its counters in globals today, and they have to live somewhere.
+ *   4. Loading the same module twice gives back the same object - and read the
+ *      warning below about what this probe can and cannot tell you here.
  *   5. A missing module fails in a way we can catch. Pushing seven files
  *      instead of one means a push can arrive half-finished, and a phone that
  *      runs on stale modules while looking perfectly healthy is the exact
@@ -237,6 +236,18 @@ if (sibling) {
   console.log("");
   console.log("  can the module see the phone (device, console, and so on)? " +
               (sibling.seesDevice ? "yes" : "NO"));
+
+  console.warn("");
+  console.warn("  READ THIS. Both of those require() calls were made from this");
+  console.warn("  one file, and that is the only case they prove. A require()");
+  console.warn("  made INSIDE a module has its own cache: it hands that module a");
+  console.warn("  fresh copy, even for the same absolute path. So \"shared\" here");
+  console.warn("  does not mean one copy for the whole script.");
+  console.warn("");
+  console.warn("  Measured on a Galaxy A8+ after this probe first said otherwise,");
+  console.warn("  and it cost an evening: main.js set a value, another module read");
+  console.warn("  its own copy and saw null. Anything that must be shared between");
+  console.warn("  modules goes on global - see lib/state.js.");
 }
 
 // ---------------------------------------------------------------- when missing

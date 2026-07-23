@@ -338,8 +338,15 @@ deletes them again; nothing else is touched.
 Run it before splitting anything else out of `main.js`, or on any phone where
 `main.js` says it could not load one of its parts. On a Galaxy A8+ running
 Android 9 it answered yes to all five questions: `require()` exists, finds a
-file beside the script and one in a subfolder, hands every caller the same
+file beside the script and one in a subfolder, hands the same caller the same
 object, and throws catchably when a file is missing.
+
+**One of those answers is narrower than it looks, and it cost an evening.** Two
+`require()` calls in the *same file* share a cache. A `require()` made *inside a
+module* does not — it gets a fresh copy, even for the same absolute path. So
+`main.js` set a value, `lib/feed.js` read its own copy, saw null, and reported
+"Could not open TikTok" while TikTok was open on the screen. Anything that must
+be shared between modules is parked on `global`; see `src/lib/state.js`.
 
 **`probe_console_window.js`** — measures where AutoJs6's floating console panel
 sits, and whether it can be moved. It touches nothing outside AutoJs6, and puts

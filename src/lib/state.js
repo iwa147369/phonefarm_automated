@@ -8,9 +8,23 @@
  *
  * main.js used to keep all of this in ordinary variables at the top of one big
  * file, which worked because there was only one file. Now that the script is in
- * pieces, they need somewhere to live that every piece can reach. require()
- * hands every caller the same object - measured on the farm phones by
- * probe_require.js - so one copy of this is what the whole script sees.
+ * pieces, they need somewhere to live that every piece can reach.
+ *
+ * WHY IT IS PARKED ON global
+ *
+ * Because require() alone does not give one shared copy, whatever it looks
+ * like. Two require() calls in the same file do hand back the same object - but
+ * a require() inside a module has its own cache, so each module gets a fresh
+ * copy of everything it asks for. Using the same absolute path does not help;
+ * this was measured on a Galaxy A8+, and both spellings gave a fresh copy.
+ *
+ * That cost an evening. main.js set state.tiktokPackage, feed.js read its own
+ * copy, saw null, and reported "Could not open TikTok" while TikTok sat open on
+ * the screen. Every piece worked; nothing was shared.
+ *
+ * global is shared, and was measured to be. So the first file to load this
+ * builds the object and parks it there, and every later loader finds it again.
+ * One name on global, once, for the whole script.
  *
  * THE ONE RULE
  *
@@ -31,86 +45,92 @@
  * remember it.
  */
 
-var settingsModule = require("./settings.js");
-var SETTINGS = settingsModule.SETTINGS;
+function buildState() {
 
-var state = {
+  var settingsModule = require("./settings.js");
+  var SETTINGS = settingsModule.SETTINGS;
 
-  // ---- settings, passed through so a module needs one require, not two ----
+  var state = {
 
-  SETTINGS: SETTINGS,
-  DEVICE_CONFIG_FILE: settingsModule.DEVICE_CONFIG_FILE,
+    // ---- settings, passed through so a module needs one require, not two ----
 
-  // ---- the session running now ----
+    SETTINGS: SETTINGS,
+    DEVICE_CONFIG_FILE: settingsModule.DEVICE_CONFIG_FILE,
 
-  // Emptied in place at the start of each session, never replaced.
-  stats: {
-    videos: 0, like: 0, save: 0, share: 0, comments: 0, seeded: 0,
-    replies: 0, sent: 0, back: 0, misses: 0
-  },
+    // ---- the session running now ----
 
-  /** Set by the volume-up key. The session finishes the current video, then stops. */
-  stopRequested: false,
+    // Emptied in place at the start of each session, never replaced.
+    stats: {
+      videos: 0, like: 0, save: 0, share: 0, comments: 0, seeded: 0,
+      replies: 0, sent: 0, back: 0, misses: 0
+    },
 
-  /** Why the session ended. Goes into the note left for whoever checks the farm. */
-  endReason: "unknown",
+    /** Set by the volume-up key. The session finishes the current video, then stops. */
+    stopRequested: false,
 
-  /**
-   * How many button lookups have failed in a row.
-   *
-   * The run matters more than the total: one or two are normal while a video
-   * loads, but eight in a row means TikTok has renamed something.
-   */
-  consecutiveMisses: 0,
+    /** Why the session ended. Goes into the note left for whoever checks the farm. */
+    endReason: "unknown",
 
-  /** Which TikTok this phone has. Worked out once at startup. */
-  tiktokPackage: null,
+    /**
+     * How many button lookups have failed in a row.
+     *
+     * The run matters more than the total: one or two are normal while a video
+     * loads, but eight in a row means TikTok has renamed something.
+     */
+    consecutiveMisses: 0,
 
-  /** The rates in force right now, which change as an account ages. */
-  activeRates: null,
+    /** Which TikTok this phone has. Worked out once at startup. */
+    tiktokPackage: null,
 
-  /** Set once if a name ever has to be compared the crude way, so we say it once. */
-  warnedAboutNames: false,
+    /** The rates in force right now, which change as an account ages. */
+    activeRates: null,
 
-  // ---- the helpers that touch all of the above ----
+    /** Set once if a name ever has to be compared the crude way, so we say it once. */
+    warnedAboutNames: false,
 
-  log: function (msg) {
-    if (SETTINGS.verbose) console.log(msg);
-  },
+    // ---- the helpers that touch all of the above ----
 
-  /** Record that a button could not be found. */
-  noteMiss: function () {
-    state.stats.misses++;
-    state.consecutiveMisses++;
-  },
+    log: function (msg) {
+      if (SETTINGS.verbose) console.log(msg);
+    },
 
-  /** Record that something worked, which ends any run of failures. */
-  noteHit: function () {
-    state.consecutiveMisses = 0;
-  },
+    /** Record that a button could not be found. */
+    noteMiss: function () {
+      state.stats.misses++;
+      state.consecutiveMisses++;
+    },
 
-  /** Have we lost track of the buttons entirely? */
-  buttonsSeemBroken: function () {
-    return state.consecutiveMisses >= SETTINGS.watchdog.stop_after_missed_buttons;
-  },
+    /** Record that something worked, which ends any run of failures. */
+    noteHit: function () {
+      state.consecutiveMisses = 0;
+    },
 
-  /**
-   * Clear everything ready for a new session.
-   *
-   * The counters are set back to zero one at a time rather than replaced with a
-   * fresh object. That looks like the long way round and it is deliberate: a
-   * new object would leave every part of the script still holding the old one,
-   * writing into something nobody reads. The phone would browse and like
-   * normally and report a session of nothing at all.
-   */
-  startSession: function () {
-    var s = state.stats;
-    s.videos = 0; s.like = 0; s.save = 0; s.share = 0; s.comments = 0;
-    s.seeded = 0; s.replies = 0; s.sent = 0; s.back = 0; s.misses = 0;
+    /** Have we lost track of the buttons entirely? */
+    buttonsSeemBroken: function () {
+      return state.consecutiveMisses >= SETTINGS.watchdog.stop_after_missed_buttons;
+    },
 
-    state.endReason = "unknown";
-    state.consecutiveMisses = 0;
-  }
-};
+    /**
+     * Clear everything ready for a new session.
+     *
+     * The counters are set back to zero one at a time rather than replaced with a
+     * fresh object. That looks like the long way round and it is deliberate: a
+     * new object would leave every part of the script still holding the old one,
+     * writing into something nobody reads. The phone would browse and like
+     * normally and report a session of nothing at all.
+     */
+    startSession: function () {
+      var s = state.stats;
+      s.videos = 0; s.like = 0; s.save = 0; s.share = 0; s.comments = 0;
+      s.seeded = 0; s.replies = 0; s.sent = 0; s.back = 0; s.misses = 0;
 
-module.exports = state;
+      state.endReason = "unknown";
+      state.consecutiveMisses = 0;
+    }
+  };
+
+  return state;
+}
+
+// The first file to load this builds it; everybody after that finds it here.
+module.exports = global.__farm_state || (global.__farm_state = buildState());
