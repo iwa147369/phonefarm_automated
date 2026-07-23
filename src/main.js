@@ -81,9 +81,17 @@ function requireModule(name) {
 // phone changes only what it needs in its own device.json, which deploy.sh puts
 // beside this script - see applyDeviceConfig below.
 
-var settingsModule = requireModule("settings");
-var DEVICE_CONFIG_FILE = settingsModule.DEVICE_CONFIG_FILE;
-var SETTINGS = settingsModule.SETTINGS;
+var state = requireModule("state");
+var SETTINGS = state.SETTINGS;
+var DEVICE_CONFIG_FILE = state.DEVICE_CONFIG_FILE;
+
+// Safe to name locally because nothing ever replaces them - see the rule at the
+// top of lib/state.js. Everything that does get replaced is reached as state.x.
+var stats = state.stats;
+var log = state.log;
+var noteMiss = state.noteMiss;
+var noteHit = state.noteHit;
+var buttonsSeemBroken = state.buttonsSeemBroken;
 
 // ============================================================================
 // BUTTON LABELS - moved to lib/labels.js
@@ -111,19 +119,6 @@ auto.waitFor();
 // exactly when somebody standing over the farm needs to see them.
 if (SETTINGS.show_console_window) console.show();
 
-var stopRequested = false;
-
-// Why the session ended, and how many button lookups have failed in a row.
-// Both feed the note written for whoever checks the farm later.
-var endReason = "unknown";
-var consecutiveMisses = 0;
-var stats = { videos: 0, like: 0, save: 0, share: 0, comments: 0, seeded: 0, replies: 0, sent: 0,
-              back: 0, misses: 0 };
-var tiktokPackage = null;
-
-// Set once if tidyName ever has to fall back. Kept outside the function so
-// the warning appears a single time instead of on every row of every inbox.
-var warnedAboutNames = false;
 
 // ------------------------------------------------------ this phone's settings
 
@@ -226,32 +221,6 @@ function settleConsoleWindow() {
 }
 
 // ---------------------------------------------------------------- utilities
-
-function log(msg) {
-  if (SETTINGS.verbose) console.log(msg);
-}
-
-/**
- * Record that a button could not be found.
- *
- * The run of failures matters more than the total. One or two are normal while
- * a video loads; eight in a row means the buttons have been renamed, which is
- * what happens when TikTok updates.
- */
-function noteMiss() {
-  stats.misses++;
-  consecutiveMisses++;
-}
-
-/** Record that something worked, which ends any run of failures. */
-function noteHit() {
-  consecutiveMisses = 0;
-}
-
-/** Have we lost track of the buttons entirely? */
-function buttonsSeemBroken() {
-  return consecutiveMisses >= SETTINGS.watchdog.stop_after_missed_buttons;
-}
 
 /** Random whole number between min and max, both included. */
 function rndInt(min, max) {
@@ -697,7 +666,7 @@ function doReadComments() {
 
   sleep(Math.round(rndFromRange(SETTINGS.comments.read_seconds) * 1000));
 
-  for (var i = 0; i < scrolls && !stopRequested; i++) {
+  for (var i = 0; i < scrolls && !state.stopRequested; i++) {
     scrollComments();
     sleep(Math.round(rndFromRange(SETTINGS.comments.read_seconds) * 1000));
   }
@@ -717,7 +686,7 @@ function doReadComments() {
     if (commentPanelIsOpen(800)) {
       console.error("  comments: the panel will not close - ending the session");
       console.error("  Set read_comments to 0 in SETTINGS until this is sorted.");
-      stopRequested = true;
+      state.stopRequested = true;
       return false;
     }
   }
@@ -805,7 +774,7 @@ function doShare() {
   if (!closeSharePanel()) {
     console.error("  share: the panel will not close - ending the session");
     console.error("  Set share to 0 in SETTINGS until this is sorted out.");
-    stopRequested = true;
+    state.stopRequested = true;
     return false;
   }
 
@@ -973,7 +942,7 @@ function doSendToFriend() {
   // The panel usually closes itself once the video has gone. Make sure.
   if (sharePanelIsOpen(800) && !closeSharePanel()) {
     console.error("  send: the panel will not close - ending the session");
-    stopRequested = true;
+    state.stopRequested = true;
     return false;
   }
 
@@ -1160,8 +1129,8 @@ function tidyName(name) {
   // than hand back an empty string, and say so - the fault that hid last time
   // hid because nothing complained.
   if (!out) {
-    if (!warnedAboutNames) {
-      warnedAboutNames = true;
+    if (!state.warnedAboutNames) {
+      state.warnedAboutNames = true;
       console.error("tidyName emptied \"" + name + "\" - the pattern is wrong " +
                     "on this phone. Falling back to a plain comparison.");
     }
@@ -1371,7 +1340,7 @@ function doCheckMessages() {
 
   var limit = Math.min(wanted.length, settingValue(settings.max_replies));
 
-  for (var w = 0; w < limit && !stopRequested; w++) {
+  for (var w = 0; w < limit && !state.stopRequested; w++) {
     var row = wanted[w];
 
     // Read the list again and make sure this row still says what it said. The
@@ -1454,14 +1423,14 @@ function detectTikTokPackage() {
 }
 
 function isTikTokOnScreen() {
-  return currentPackage() === tiktokPackage;
+  return currentPackage() === state.tiktokPackage;
 }
 
 function openTikTok() {
   if (isTikTokOnScreen()) return true;
 
   log("Opening TikTok...");
-  app.launchPackage(tiktokPackage);
+  app.launchPackage(state.tiktokPackage);
 
   for (var waited = 0; waited < 20000; waited += 500) {
     sleep(500);
@@ -1522,7 +1491,7 @@ function pickWatchMs() {
  */
 function watchFor(totalMs) {
   var slept = 0;
-  while (slept < totalMs && !stopRequested) {
+  while (slept < totalMs && !state.stopRequested) {
     var step = Math.min(500, totalMs - slept);
     sleep(step);
     slept += step;
@@ -1535,8 +1504,8 @@ function runSession(minutes) {
   var endAt = Date.now() + minutes * 60 * 1000;
   var consecutiveFailures = 0;
 
-  while (Date.now() < endAt && !stopRequested) {
-    if (!checkBattery()) { endReason = "battery_low"; break; }
+  while (Date.now() < endAt && !state.stopRequested) {
+    if (!checkBattery()) { state.endReason = "battery_low"; break; }
 
     if (!isTikTokOnScreen()) {
       console.warn("TikTok is no longer on screen, reopening");
@@ -1544,7 +1513,7 @@ function runSession(minutes) {
         consecutiveFailures++;
         if (consecutiveFailures >= 3) {
           console.error("Stopping: could not get back into TikTok");
-          endReason = "tiktok_would_not_open";
+          state.endReason = "tiktok_would_not_open";
           break;
         }
         continue;
@@ -1552,20 +1521,20 @@ function runSession(minutes) {
     }
     consecutiveFailures = 0;
 
-    if (checkStopSignals()) { endReason = "needs_a_human"; break; }
+    if (checkStopSignals()) { state.endReason = "needs_a_human"; break; }
 
     if (buttonsSeemBroken()) {
-      console.error("Nothing has been findable for " + consecutiveMisses +
+      console.error("Nothing has been findable for " + state.consecutiveMisses +
                     " tries in a row.");
       console.error("TikTok has probably been updated and renamed things.");
       console.error("Run probe.js and check the BUTTON LABELS section.");
-      endReason = "buttons_not_found";
+      state.endReason = "buttons_not_found";
       break;
     }
 
     if (!isScreenOn()) {
       console.warn("The screen went off - stopping.");
-      endReason = "screen_off";
+      state.endReason = "screen_off";
       break;
     }
 
@@ -1576,14 +1545,14 @@ function runSession(minutes) {
         "s (" + minutesLeft + " min left in session)");
 
     watchFor(watchMs);
-    if (stopRequested) { endReason = "stopped_by_hand"; break; }
+    if (state.stopRequested) { state.endReason = "stopped_by_hand"; break; }
 
     // Decide what to do with this video. Each is rolled separately, so a video
     // can get both a like and a save.
-    if (chance(activeRates.like)) doLike();
-    if (chance(activeRates.save)) doSave();
-    if (chance(activeRates.read_comments)) doReadComments();
-    if (chance(activeRates.share)) doShare();
+    if (chance(state.activeRates.like)) doLike();
+    if (chance(state.activeRates.save)) doSave();
+    if (chance(state.activeRates.read_comments)) doReadComments();
+    if (chance(state.activeRates.share)) doShare();
 
     // Sending a video to one of our own accounts. Capped for the session as
     // well as being rare per video: one account posting a stream of videos to
@@ -1626,7 +1595,7 @@ function runSession(minutes) {
 
 function printSummary(startedAt) {
   var minutes = ((Date.now() - startedAt) / 60000).toFixed(1);
-  if (endReason === "unknown") endReason = "ran_its_time";
+  if (state.endReason === "unknown") state.endReason = "ran_its_time";
 
   console.log("");
   console.log("========== SESSION FINISHED ==========");
@@ -1640,7 +1609,7 @@ function printSummary(startedAt) {
   if (stats.sent > 0)    console.log("Sent to friend : " + stats.sent);
   if (stats.seeded > 0) console.log("Topic searched : yes");
   console.log("Swiped back    : " + stats.back);
-  console.log("Ended because  : " + endReason);
+  console.log("Ended because  : " + state.endReason);
   if (stats.misses > 0) {
     console.warn("Buttons not found: " + stats.misses +
                  " - run probe.js and update the BUTTON LABELS section");
@@ -1760,8 +1729,8 @@ function shouldSeedNow() {
 
   if (!SETTINGS.seed.once_per_day) return true;
 
-  var state = loadState();
-  if (state && state.seeded_on === todayKey()) {
+  var plan = loadState();
+  if (plan && plan.seeded_on === todayKey()) {
     log("Already searched for our topic today, skipping it");
     return false;
   }
@@ -1885,12 +1854,12 @@ function doSeedTopic() {
   var toWatch = Math.round(rndFromRange(SETTINGS.seed.videos_to_watch));
   log("  seed: watching " + toWatch + " of them");
 
-  for (var k = 0; k < toWatch && !stopRequested; k++) {
+  for (var k = 0; k < toWatch && !state.stopRequested; k++) {
     watchFor(pickWatchMs());
-    if (stopRequested) break;
+    if (state.stopRequested) break;
 
     // Liking here is the point of the exercise: these are videos we chose.
-    if (chance(activeRates.like)) doLike();
+    if (chance(state.activeRates.like)) doLike();
 
     humanPause(200, 900);
     swipeToNextVideo(false);
@@ -1899,7 +1868,7 @@ function doSeedTopic() {
 
   if (!returnToFeed()) {
     console.error("  seed: could not get back to the feed - ending the session");
-    stopRequested = true;
+    state.stopRequested = true;
     return false;
   }
 
@@ -1932,7 +1901,7 @@ function writeStatus(startedAt) {
     device_id: SETTINGS.device_id || "(unnamed)",
     finished_at: timestamp(),
     ran_minutes: Number(((Date.now() - startedAt) / 60000).toFixed(1)),
-    ended_because: endReason,
+    ended_because: state.endReason,
     videos: stats.videos,
     liked: stats.like,
     saved: stats.save,
@@ -1960,7 +1929,7 @@ function writeStatus(startedAt) {
 
     files.write(SETTINGS.watchdog.status_file, JSON.stringify({
       device_id: summary.device_id,
-      tiktok_package: tiktokPackage,
+      tiktok_package: state.tiktokPackage,
       last_session: summary,
       recent: recent
     }, null, 2));
@@ -2073,7 +2042,7 @@ function planForToday() {
     planned = Math.max(1, Math.round(planned / 3));
   }
 
-  var state = {
+  var plan = {
     day: todayKey(),
     planned_today: planned,
     sessions_today: 0,
@@ -2082,21 +2051,21 @@ function planForToday() {
     seeded_on: ""     // a new day means we may search for our topic again
   };
 
-  saveState(state);
+  saveState(plan);
   console.log("Plan for today: " + planned + " session(s)" +
               (lazy ? "  (a lazy day)" : ""));
-  return state;
+  return plan;
 }
 
 /** Load today's plan, making a new one if the day has rolled over. */
 function planForNow() {
-  var state = loadState();
-  if (!state || state.day !== todayKey()) return planForToday();
+  var plan = loadState();
+  if (!plan || plan.day !== todayKey()) return planForToday();
 
-  console.log("Today so far: " + state.sessions_today + " of " +
-              state.planned_today + " session(s) done" +
-              (state.lazy_day ? "  (a lazy day)" : ""));
-  return state;
+  console.log("Today so far: " + plan.sessions_today + " of " +
+              plan.planned_today + " session(s) done" +
+              (plan.lazy_day ? "  (a lazy day)" : ""));
+  return plan;
 }
 
 /** Is the clock inside one of the hours the account is meant to be awake? */
@@ -2116,15 +2085,12 @@ function isWithinActiveHours() {
 function runOneSession() {
   var minutes = settingValue(SETTINGS.session_minutes);
 
-  stats = { videos: 0, like: 0, save: 0, share: 0, comments: 0, seeded: 0, replies: 0, sent: 0,
-            back: 0, misses: 0 };
-  endReason = "unknown";
-  consecutiveMisses = 0;
-  activeRates = currentRates();
+  state.startSession();
+  state.activeRates = currentRates();
 
   console.log("");
   console.log("=== Session starting: " + minutes.toFixed(1) + " minutes, " +
-              describeRates(activeRates) + " ===");
+              describeRates(state.activeRates) + " ===");
 
   if (!openTikTok()) {
     console.error("Could not open TikTok. Is the screen unlocked?");
@@ -2151,10 +2117,10 @@ function runOneSession() {
           " min, so browsing for " + leftToBrowse.toFixed(1) + " min");
     }
 
-    if (!stopRequested) runSession(leftToBrowse);
+    if (!state.stopRequested) runSession(leftToBrowse);
   } catch (e) {
     console.error("Session stopped by an error: " + e);
-    endReason = "error: " + e;
+    state.endReason = "error: " + e;
   } finally {
     printSummary(startedAt);
     writeStatus(startedAt);
@@ -2175,7 +2141,7 @@ function waitQuietly(minutes, reason) {
   var until = Date.now() + minutes * 60 * 1000;
   var announced = false;
 
-  while (Date.now() < until && !stopRequested) {
+  while (Date.now() < until && !state.stopRequested) {
     if (!announced) {
       log("Waiting " + Math.round(minutes) + " min - " + reason);
       announced = true;
@@ -2189,18 +2155,18 @@ function waitQuietly(minutes, reason) {
  * with gaps in between. Keeps going until stopped.
  */
 function runOnSchedule() {
-  var state = planForNow();
+  var plan = planForNow();
 
-  while (!stopRequested) {
+  while (!state.stopRequested) {
     if (!checkBattery()) {
       waitQuietly(30, "battery too low to browse");
       continue;
     }
 
     // A new day means a new plan.
-    if (state.day !== todayKey()) state = planForToday();
+    if (plan.day !== todayKey()) plan = planForToday();
 
-    if (state.sessions_today >= state.planned_today) {
+    if (plan.sessions_today >= plan.planned_today) {
       waitQuietly(rnd(20, 40), "done for today, waiting for tomorrow");
       continue;
     }
@@ -2214,9 +2180,9 @@ function runOnSchedule() {
       continue;
     }
 
-    var sinceLast = (Date.now() - state.last_session_ended) / 60000;
+    var sinceLast = (Date.now() - plan.last_session_ended) / 60000;
     var wantedGap = rndFromRange(SETTINGS.schedule.gap_minutes);
-    if (state.last_session_ended > 0 && sinceLast < wantedGap) {
+    if (plan.last_session_ended > 0 && sinceLast < wantedGap) {
       waitQuietly(Math.min(20, wantedGap - sinceLast), "too soon after the last session");
       continue;
     }
@@ -2226,9 +2192,9 @@ function runOnSchedule() {
       continue;
     }
 
-    state.sessions_today++;
-    state.last_session_ended = Date.now();
-    saveState(state);
+    plan.sessions_today++;
+    plan.last_session_ended = Date.now();
+    saveState(plan);
   }
 
   console.log("");
@@ -2317,15 +2283,15 @@ if (anotherCopyIsRunning()) {
 try {
   events.observeKey();
   events.onKeyDown("volume_up", function () {
-    stopRequested = true;
+    state.stopRequested = true;
     console.warn("Stop requested - finishing the current video");
   });
 } catch (e) {
   console.warn("Volume-key stop is unavailable. Stop from AutoJs6 instead.");
 }
 
-tiktokPackage = detectTikTokPackage();
-if (!tiktokPackage) {
+state.tiktokPackage = detectTikTokPackage();
+if (!state.tiktokPackage) {
   console.error("TikTok is not installed, or uses a package name we do not know.");
   console.error("Tried: " + TIKTOK_PACKAGES.join(", "));
   exit();
@@ -2339,7 +2305,7 @@ console.log("Phone   : " + device.brand + " " + device.model +
             " (Android " + device.release + ")");
 console.log("Known as: " + (SETTINGS.device_id || "(unnamed)") +
             (hasOwnConfig ? "" : "  - USING DEFAULTS, no device.json"));
-console.log("TikTok  : " + tiktokPackage);
+console.log("TikTok  : " + state.tiktokPackage);
 
 var age = accountAgeDays();
 if (age === null) {
@@ -2360,7 +2326,7 @@ console.log("");
 
 // The rates in force for the session about to run. Reset at the start of each
 // session, because a long-running schedule can cross into a new ramp-up stage.
-var activeRates = currentRates();
+state.activeRates = currentRates();
 
 if (SETTINGS.schedule.enabled) {
   console.log("Running on a schedule. Press volume up to stop.");
