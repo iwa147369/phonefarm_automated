@@ -80,6 +80,55 @@ Coming back from a search takes three presses. A stale reading caused a fourth
 and the script ended up on the home screen. `returnToFeed()` now looks again
 before every press.
 
+### A search result is not the same thing on both TikTok builds
+
+The topic search worked on the test phone and found nothing at all on the farm.
+It searched, arrived at the results, and reported "no results on screen" while
+the results were plainly there.
+
+`LABELS.search_result` looked for one node carrying the whole result:
+
+```
+com.ss.android.ugc.trill     desc "Video by <creator>, <caption>, Liked by 39.1K users"
+```
+
+There is no such label anywhere on `com.zhiliaoapp.musically`. A result there is
+a cell built from several separate buttons, measured by `probe_search.js` on a
+Galaxy A8+:
+
+```
+55%  Button [press]  "#coffee Iced Coffee Latte. 60 ml Coffee."      the caption
+58%  Button [press]  "ack_drink"                                     the account
+60%  TextView        "Aug 30, 2025"                                  the date
+59%  Button [press]  "x17.6K"                                        the play count
+```
+
+Only the play count has a shape worth matching - one per result, always "x" and
+a number. The caption is whatever somebody typed, and the account name button
+opens their profile rather than the video.
+
+`probe_search_result.js` pressed each kind in turn and watched what opened. The
+play count opens the video, accepts a proper press, and takes four back presses
+to return - one more than coming back from the results screen without opening
+anything.
+
+**Adding the pattern was not enough.** The code read only
+`LABELS.search_result[0]` - the first way of naming a result - so a second
+pattern sitting in the list was never tried. Anyone adding one and testing it
+would have seen no change and concluded the pattern was wrong.
+
+### A backslash in a pattern has to survive being written down
+
+The fix above was written as `"^x[\\d.,]+[kmb]?$"` and reached the phone
+holding a single backslash. JavaScript reads `"\d"` inside a string as a plain
+`d`, so the pattern became "x followed by the letters d, dot or comma" and
+matched nothing - while looking perfectly correct in the file.
+
+It was found by grepping the file **on the phone** rather than trusting the
+source. The patterns now spell digits out as `[0-9]`, which cannot be spoiled
+this way, and the fix was checked by reading the pattern back out of the saved
+file and matching it against a real label before anything was deployed.
+
 ### The console panel eats the swipe that starts under it
 
 Showing AutoJs6's floating console broke the swipe back to the previous video

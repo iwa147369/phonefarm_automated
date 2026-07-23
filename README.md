@@ -124,6 +124,7 @@ phonefarm_automated/
 ├── config/
 │   ├── devices/                   # one file per phone in the farm
 │   │   └── xiaomi-test.json
+│   ├── test-all-features.json     # every rate turned up, for a test run only
 │   └── examples/                  # personas to copy and adapt
 │       ├── persona-early-riser.json
 │       └── persona-night-owl.json
@@ -154,10 +155,13 @@ phonefarm_automated/
 │       ├── probe_share_select.js  # picks a person, stops before Send
 │       ├── probe_engines.js       # what one running script can see of the others
 │       ├── probe_require.js       # can a script on the phone load a second file
-│       └── probe_console_window.js# where the console panel sits, and can it move
+│       ├── probe_console_window.js# where the console panel sits, and can it move
+│       └── probe_search_result.js # which part of a search result opens the video
 ├── tools/
 │   ├── deploy.sh                  # send main.js and each phone's settings
 │   ├── run.sh                     # send one script and start it, from your laptop
+│   ├── test-run.sh                # exercise every feature and report what was seen
+│   ├── check-shared-state.sh      # catch a module copying a shared value
 │   ├── add-device.sh              # invent settings for a new phone
 │   ├── watch.sh                   # follow what a phone is doing, live
 │   └── status.sh                  # ask every phone how it has been getting on
@@ -373,7 +377,52 @@ accounts registered together, talking only to each other, always replying. Each
 session looks human and the farm does not. Give each phone one or two names
 rather than all of them.
 
-## 9. Noticing when a phone stops working
+## 9. Proving it still works
+
+Before a phone is left to run a whole day, and before new code goes to the rest
+of the farm, one phone is put through everything:
+
+```bash
+./tools/test-run.sh <phone id>
+```
+
+It saves the phone's own settings, swaps in `config/test-all-features.json`
+with every rate turned up, runs two short sessions, and then puts the phone back
+exactly as it was — including if you interrupt it.
+
+**The pass mark is what the phone wrote down afterwards, not what it said it was
+about to do.** The report is built from `farm_status.json`, the same file the
+script writes for the farm, so a feature counts as working only if it left a
+number behind:
+
+```
+  FEATURE                 COUNT   VERDICT
+  ----------------------------------------------
+  watched videos            41   seen
+  liked                     22   seen
+  saved to favourites       15   seen
+  read comments             15   seen
+  copied a share link       14   seen
+  searched a topic           4   seen
+  replied to a message       0   not tested - switched off
+  sent to a friend           0   not tested - switched off
+```
+
+This matters because "it ran without errors" proves nothing here. A phone can
+swipe for six minutes, press nothing at all, and finish with a tidy summary —
+that is the failure this project keeps meeting, and it is why the topic search
+was found to be broken on the farm phones despite months of clean-looking runs.
+
+Two sessions rather than one, on purpose: the counters have to go back to zero
+in between, and a single session cannot show that.
+
+**It says what it did not test, and never calls that a pass.** The swipe back
+(switched off while the console panel is on), the two features that message a
+real person (off until you name an account in the test settings), and the
+watchdogs — a renamed button, a login wall, a flat battery — which cannot be
+brought about safely to order.
+
+## 10. Noticing when a phone stops working
 
 A farm is a dozen phones nobody is looking at. A phone that quietly stopped three days ago looks exactly like a healthy one until someone checks.
 
@@ -404,7 +453,7 @@ xiaomi-test  VC7PSS8LNJINY9HY  last 2026-07-22 19:01  22 videos  4 liked  ran_it
 
 One or two misses are normal — a video may still be loading — so it is the *run* of failures that counts, not the total.
 
-## 10. Staying undetected
+## 11. Staying undetected
 
 This decides how long the script keeps working. These rules are not optional.
 
@@ -416,7 +465,7 @@ This decides how long the script keeps working. These rules are not optional.
 6. **Give every phone a different personality.** A whole farm browsing the same topic on the same rhythm is an obvious pattern.
 7. **Stop when something looks wrong.** Captcha, verification, logout or rate limiting all mean: stop, write it down, do not retry.
 
-## 11. Known risks
+## 12. Known risks
 
 | Risk | Likelihood | What we do about it |
 |---|---|---|
@@ -429,7 +478,7 @@ This decides how long the script keeps working. These rules are not optional.
 | Android kills the script during the long waits between sessions | **Held up on the real farm** | The script must stay alive for hours doing nothing, which is exactly what battery savers target. The operator confirms it survives a full day on the farm phones. Watch it anyway on any new phone model |
 | Two copies of the script running on one phone | **Handled** | Starting the script does not stop a copy already running, and both look healthy while quietly doubling the session count. A copy that finds an older one now stands down. See `docs/WHAT-BROKE.md` |
 
-## 12. Plan
+## 13. Plan
 
 ### Phase 1 — one phone working
 - [x] Install AutoJs6, grant permissions, prepare the phone
@@ -463,7 +512,7 @@ This decides how long the script keeps working. These rules are not optional.
 - [x] Collect results from every phone
 - [ ] A daily summary per phone
 
-## 13. What we still need
+## 14. What we still need
 
 **Before the farm runs unattended:**
 

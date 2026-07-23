@@ -199,6 +199,25 @@ purpose: these are the tools you reach for when TikTok has changed and nothing
 works, so each one has to run from a single file with nothing else alongside
 it.
 
+## Proving every feature still works
+
+```bash
+./tools/test-run.sh <phone id>
+```
+
+Run this on one phone before leaving the farm to itself for a day, and again
+before sending new code to the other phones. It swaps in
+`config/test-all-features.json` — every rate turned up so the slow features
+actually get a turn — runs two short sessions, reports which features left a
+count behind in `farm_status.json`, and puts the phone back as it was.
+
+It reads the record file rather than the log on purpose. "It ran without errors"
+is not evidence: a phone can swipe for six minutes, press nothing, and print a
+tidy summary. Only a number written down afterwards counts.
+
+Features it cannot test are named as "not tested", never as passed — the swipe
+back, the two features that message a real person, and the watchdogs.
+
 ## `main.js` — the browsing session
 
 The settings are in `src/lib/settings.js`, not in `main.js` itself. For a first
@@ -331,6 +350,16 @@ the name written into `SHARE_TO` at the top of the file, so set that to an
 account you own. If it turns out that choosing sends after all, the video should
 land somewhere harmless.
 
+**`probe_search_result.js`** — works out which part of a search result opens the
+video. It presses **one** thing per run, chosen by `TRY` at the top of the file:
+the play count, the caption, or the account name. Nothing is liked, followed or
+shared.
+
+Run it when the topic search stops finding results. On a Galaxy A8+ running the
+`com.zhiliaoapp.musically` build it found that a result is not one node at all
+but a cell of separate buttons, and that pressing the play count - "x17.6K", one
+per result - opens the video. That is now what `lib/labels.js` matches.
+
 **`probe_require.js`** — asks whether a script on the phone can load a second
 file. It writes two small test files in its own folder, tries to load them, and
 deletes them again; nothing else is touched.
@@ -378,9 +407,18 @@ out to be Galaxy A9 and A8+ phones from 2018, on **Android 9 and 10**, running
 **`com.zhiliaoapp.musically`** rather than the `com.ss.android.ugc.trill` build
 that was tested. It ran 445 videos across four phones on its first day.
 
-The one crack visible so far: the two Android 9 phones missed buttons 13 times
-between them on that first day, and the Android 10 phone missed none. Nobody has
-run `probe.js` on an Android 9 phone yet to find out which button it is.
+**The search results screen is laid out differently**, and that one is now
+found and fixed: the `musically` build builds a result out of several separate
+buttons instead of one labelled node, so the topic search found nothing at all.
+See `docs/WHAT-BROKE.md`. Everything else was put through
+`./tools/test-run.sh` on a Galaxy A8+ and seen to work.
+
+**The button misses are still unexplained.** The two Android 9 phones missed
+buttons 13 times on the first day where the Android 10 phone missed none, and a
+test run still shows a handful. They arrive in clusters - `save`, `comments` and
+`share` all missing at the same moment - which points at a video whose buttons
+had not been drawn yet rather than at a renamed one, but nobody has proved that.
+Run `probe.js` on an Android 9 phone at the moment it happens to settle it.
 
 **Xiaomi blocks remote tapping.** On MIUI, `adb shell input tap` is refused
 unless you enable "USB debugging (Security settings)", which requires signing
