@@ -26,7 +26,7 @@ These goals support each other. One browsing session produces all three results 
 |---|---|---|
 | Automation tool | **AutoJs6** | See section 3. The tool we originally picked turned out to be abandoned |
 | Devices | Real Android phones, **not emulators** | Emulators are easier for TikTok to detect |
-| Minimum Android version | **Android 11** | The oldest version in the farm. We use nothing newer, so one script runs everywhere |
+| Minimum Android version | **Android 9** | The oldest version in the farm — the 2018 Galaxy A8+ phones. We use nothing newer, so one script runs everywhere |
 | How the script finds buttons | **Accessibility labels only** | Android gives every button a spoken label, for example "Share video. 116 shares". Reading those is fast and does not depend on screen size |
 | TikTok app language | **English**, on every phone | We match those labels by their English wording, so all phones must use the same language |
 | Accounts | Already logged in, **one account per phone** | The script never touches login. Switching accounts on one phone lets TikTok link them together |
@@ -40,7 +40,7 @@ This project first chose AutoX.js. That was wrong, and here is why, so nobody re
 
 **AutoX.js has stopped.** Its last release is 6.5.5.10 from July 2024, with no work on Android 15 or 16.
 
-**AutoJs6 is alive.** Version 6.7.0 came out in March 2026. Its release notes list fixes for Android 16, including one for the "back" action failing — which is exactly what our share flow depends on. It works from Android 7 upwards, so it covers both the Android 16 test phone and the Android 11 to 13 farm phones. One app for everything.
+**AutoJs6 is alive.** Version 6.7.0 came out in March 2026. Its release notes list fixes for Android 16, including one for the "back" action failing — which is exactly what our share flow depends on. It works from Android 7 upwards, so it covers both the Android 16 test phone and the Android 9 and 10 farm phones. One app for everything.
 
 Both are descendants of the original Auto.js, so they share the same commands and the script needs no rewriting.
 
@@ -52,6 +52,13 @@ Everything below was measured on the test phone, not assumed. It is recorded her
 
 **Test phone:** Xiaomi 13T, Android 16, screen 1220 x 2712
 **TikTok:** `com.ss.android.ugc.trill`, version 46.1.3, English
+
+**The farm phones are not like the test phone.** They are Galaxy A9 and A8+
+handsets from 2018 on **Android 9 and 10**, running **`com.zhiliaoapp.musically`**
+— older phones and a different TikTok build than anything measured below. The
+script recognises either package. It ran 445 videos across four of them on its
+first day, so the labels below hold up, but see `docs/WHAT-BROKE.md` for the one
+place the two builds appear to differ.
 
 **The buttons are called:**
 
@@ -396,9 +403,10 @@ This decides how long the script keeps working. These rules are not optional.
 | Android shuts down the automation service in the background | Medium | Setup instructions cover the battery settings, per manufacturer |
 | An account gets restricted | Medium | Low interaction rates, slow ramp-up, different personality per phone |
 | Many phones on one internet connection look linked | Medium | Outside what the script can fix. Needs a decision on separate mobile data or proxies |
-| Two copies of the script on one phone, and the old one runs | Medium | It has already happened once. `deploy.sh` and `run.sh` both write to the same single folder — never keep a second copy |
+| Two copies of the script on one phone, and the old one runs | Medium | It has already happened once. `deploy.sh` and `run.sh` both write to the same single folder — never keep a second copy. The single-copy check below does **not** cover this: it matches copies by file path, so a stale copy in another folder looks like a different script |
 | The farm phones behave differently from the test phone | **Unknown** | Nothing has been tried on a Samsung yet. See section 12 |
-| Android kills the script during the long waits between sessions | **Unknown, and the main risk of scheduled mode** | The script must stay alive for hours doing nothing, which is exactly what battery savers target. Untested over a full day |
+| Android kills the script during the long waits between sessions | **Held up on the real farm** | The script must stay alive for hours doing nothing, which is exactly what battery savers target. The operator confirms it survives a full day on the farm phones. Watch it anyway on any new phone model |
+| Two copies of the script running on one phone | **Handled** | Starting the script does not stop a copy already running, and both look healthy while quietly doubling the session count. A copy that finds an older one now stands down. See `docs/WHAT-BROKE.md` |
 
 ## 12. Plan
 
@@ -417,30 +425,32 @@ This decides how long the script keeps working. These rules are not optional.
 ### Phase 2 — personalities and topics
 - [x] Several sessions a day, waking hours, and gaps between them
 - [x] Hold the rates down while an account is new
-- [ ] Prove the schedule survives a full day without Android killing it
+- [x] Prove the schedule survives a full day without Android killing it
+      (confirmed by the operator on the real farm, not from logs)
 - [ ] Decide where collected data goes
 - [ ] Read captions and hashtags, and score how well a video matches a topic
 - [ ] Treat on-topic and off-topic videos differently
 - [x] Seed a topic through search
 - [x] Give up when the buttons stop being findable, or the screen goes off
 - [x] Leave a note on each phone so the farm can be checked from the laptop
+- [x] Refuse to start when another copy of the script is already running
 - [ ] Confirm the login and captcha checks actually fire (never seen one yet)
 
 ### Phase 3 — the whole farm
-- [ ] Prove everything again on a Samsung running Android 11 to 13
-- [ ] Per-phone settings files
-- [ ] Collect results from every phone
+- [x] Prove everything again on the real farm phones
+- [x] Per-phone settings files
+- [x] Collect results from every phone
 - [ ] A daily summary per phone
 
 ## 13. What we still need
 
 **Before the farm runs unattended:**
 
-- **A Samsung on Android 11–13.** Nothing here has ever run on one. The farm is
-  Samsung; the test phone is a Xiaomi on Android 16. This is the real unknown.
-- **A lock so two copies cannot run at once.** Two schedulers were seen running
-  together, which would double every session count.
-- **A full day on the schedule.** It has never survived one. Android may kill it.
+- **A probe on an Android 9 phone.** On the first farm day the two Android 9
+  phones missed buttons 13 times between them, and the Android 10 phone missed
+  none. Something is named differently on the older build, and nobody knows
+  what yet. It has not stopped a session — the cut-off is 8 misses in a row —
+  but it is the one measured crack in an otherwise clean first day.
 
 **Unproven:**
 

@@ -1,0 +1,44 @@
+{
+  "_comment": "SM-A730F - scattered through the day. Invented by tools/add-device.sh; change anything you like.",
+  "device_id": "farm-04",
+  "adb_serial": "5200b87ec0a4a431",
+  "session_minutes": [
+    9,
+    21
+  ],
+  "rates": {
+    "like": 0.205,
+    "save": 0.039,
+    "read_comments": 0.077,
+    "share": 0.0149
+  },
+  "schedule": {
+    "enabled": true,
+    "active_hours": [
+      [
+        8,
+        10
+      ],
+      [
+        18,
+        21
+      ]
+    ],
+    "sessions_per_day": [
+      4,
+      6
+    ],
+    "gap_minutes": [
+      41,
+      116
+    ],
+    "chance_of_lazy_day": 0.19
+  },
+  "seed": {
+    "enabled": true,
+    "keywords": ["indo taiwan", "taiwan food"]
+  },
+  "ramp_up": {
+    "account_started": ""
+  }
+}

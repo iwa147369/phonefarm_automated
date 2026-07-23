@@ -270,14 +270,30 @@ the name written into `SHARE_TO` at the top of the file, so set that to an
 account you own. If it turns out that choosing sends after all, the video should
 land somewhere harmless.
 
+**`probe_engines.js`** — asks what one running script can see about the others.
+Read-only: it starts nothing and stops nothing. Run it, then run it again within
+forty seconds without stopping the first; it lingers on purpose so the second
+copy has something to find.
+
+It answered the question behind the single-copy check in `main.js`: a script can
+read its own file path (`getSource().getFullPath()`), list everything running
+(`engines.all()`), and spot another copy of itself within twenty milliseconds of
+starting. That is why the check needs no lock file — and so leaves nothing
+behind when a phone is switched off mid-session.
+
 ---
 
 # Known unknowns
 
-**The farm phones have not been tested.** Everything above is confirmed on a
-Xiaomi 13T running Android 16. The farm is Samsung running Android 11 to 13.
-Samsung manages background apps differently, which is the one area the script
-depends on most. Re-check every step there before trusting it.
+**The farm is older than planned, and it still works.** Everything above the
+farm sections is confirmed on a Xiaomi 13T running Android 16. The farm turned
+out to be Galaxy A9 and A8+ phones from 2018, on **Android 9 and 10**, running
+**`com.zhiliaoapp.musically`** rather than the `com.ss.android.ugc.trill` build
+that was tested. It ran 445 videos across four phones on its first day.
+
+The one crack visible so far: the two Android 9 phones missed buttons 13 times
+between them on that first day, and the Android 10 phone missed none. Nobody has
+run `probe.js` on an Android 9 phone yet to find out which button it is.
 
 **Xiaomi blocks remote tapping.** On MIUI, `adb shell input tap` is refused
 unless you enable "USB debugging (Security settings)", which requires signing

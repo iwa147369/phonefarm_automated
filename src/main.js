@@ -252,6 +252,21 @@ var SETTINGS = {
     keep_recent_sessions: 20
   },
 
+  // Refuse to start when another copy of this script is already running.
+  //
+  // On 2026-07-23 farm-03 ran two copies at once: one session from 17:04 to
+  // 17:18, another from 17:05 to 17:20. Both counted their own sessions into
+  // the same file, so it recorded 2 sessions on a day that actually ran 5, and
+  // the daily limit stopped meaning anything. A phone browsing twice as much
+  // as planned is the opposite of what the schedule is for.
+  //
+  // Starting the script does not stop a copy that is already going, and
+  // nothing on the phone makes that obvious - both copies look healthy.
+  //
+  // Turning this off restores the old behaviour. There is no good reason to,
+  // but a check that cannot be switched off is one that can strand a farm.
+  single_instance: true,
+
   // Print every action to the AutoJs6 console.
   verbose: true,
 
@@ -2626,7 +2641,83 @@ function runOnSchedule() {
   console.log("Schedule stopped.");
 }
 
+// ------------------------------------------------------- only one copy at a time
+
+/**
+ * Is another copy of this same script already running on this phone?
+ *
+ * AutoJs6 keeps a list of the scripts it is running, and each one can say
+ * which file it came from. That was measured before this was written
+ * (probe_engines.js): two copies of one file were started eight seconds apart,
+ * and the second saw the first straight away, within twenty milliseconds of
+ * starting.
+ *
+ * Because the answer lives in memory rather than in a file, there is nothing
+ * to leave behind. A phone switched off mid-session comes back with a clean
+ * slate, which is not true of a lock written to disk.
+ *
+ * Ids count upwards, so a smaller id means an older copy. The older one keeps
+ * going and the newer stands down. That rule matters for the case where two
+ * copies start in the same instant and each sees the other: without it both
+ * would politely quit and the phone would do nothing at all.
+ */
+function anotherCopyIsRunning() {
+  if (!SETTINGS.single_instance) return false;
+
+  var myPath, myId, all;
+  try {
+    var me = engines.myEngine();
+    myPath = String(me.getSource().getFullPath());
+    myId = Number(me.getId());
+    all = engines.all();
+  } catch (e) {
+    // Never refuse to start over a question we could not ask. Nothing
+    // restarts this script, so a phone that wrongly stands down is idle until
+    // somebody notices - worse than one that runs twice.
+    console.warn("Could not check for another copy (" + e + "). Carrying on.");
+    return false;
+  }
+
+  if (!myPath || isNaN(myId)) {
+    console.warn("This build cannot name its own script, so a second copy " +
+                 "cannot be spotted. Carrying on.");
+    return false;
+  }
+
+  for (var i = 0; i < all.length; i++) {
+    var otherId;
+    try {
+      otherId = Number(all[i].getId());
+      if (otherId === myId) continue;                                  // this one
+      if (String(all[i].getSource().getFullPath()) !== myPath) continue; // another script
+    } catch (e) {
+      continue;   // cannot read it, so cannot judge it
+    }
+
+    if (otherId < myId) {
+      console.error("Another copy of this script is already running " +
+                    "(id " + otherId + "; this one is " + myId + ").");
+      return true;
+    }
+  }
+
+  return false;
+}
+
 // ---------------------------------------------------------------- start up
+
+if (anotherCopyIsRunning()) {
+  console.error("");
+  console.error("Stopping, so two copies do not browse this phone at once.");
+  console.error("");
+  console.error("Two copies do not collide in any obvious way - both look");
+  console.error("healthy, and both count their sessions into the same file, so");
+  console.error("the daily limit quietly stops being a limit.");
+  console.error("");
+  console.error("To hand this phone over to this newer copy instead, stop the");
+  console.error("older one from the AutoJs6 task list, then start this again.");
+  exit();
+}
 
 // Volume-up stops the session cleanly, so we do not leave TikTok mid-action.
 try {

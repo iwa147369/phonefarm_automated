@@ -1,0 +1,44 @@
+{
+  "_comment": "SM-A920F - a long lunch and an early night. Invented by tools/add-device.sh; change anything you like.",
+  "device_id": "farm-01",
+  "adb_serial": "2bed2f5cad1d7ece",
+  "session_minutes": [
+    5,
+    16
+  ],
+  "rates": {
+    "like": 0.149,
+    "save": 0.031,
+    "read_comments": 0.038,
+    "share": 0.0062
+  },
+  "schedule": {
+    "enabled": true,
+    "active_hours": [
+      [
+        10,
+        13
+      ],
+      [
+        17,
+        21
+      ]
+    ],
+    "sessions_per_day": [
+      4,
+      4
+    ],
+    "gap_minutes": [
+      43,
+      205
+    ],
+    "chance_of_lazy_day": 0.09
+  },
+  "seed": {
+    "enabled": true,
+    "keywords": []
+  },
+  "ramp_up": {
+    "account_started": ""
+  }
+}

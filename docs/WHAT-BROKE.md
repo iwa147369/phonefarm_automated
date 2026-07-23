@@ -310,11 +310,93 @@ finding a stranger.
 
 ---
 
+---
+
+## Two copies at once, and neither one notices
+
+Starting the script does not stop a copy that is already running. Nothing about
+the phone makes that visible: both copies look healthy, both write cheerful
+lines to the same console.
+
+farm-03, 2026-07-23:
+
+```
+17:04 -> 17:18   13.4 min   50 videos
+17:05 -> 17:20   15.0 min   68 videos
+```
+
+Two sessions, one phone, overlapping by thirteen minutes. The damage shows up
+in the state file rather than on screen: `sessions_today` read **2** on a day
+that had actually run **5**, because each copy counted into a file the other
+kept overwriting. The daily limit had quietly stopped being a limit, and the
+phone was browsing at roughly twice its planned rate - the exact opposite of
+what a schedule is for.
+
+Nothing in the logs says "this went wrong". It was only found by lining the
+sessions up by start time and noticing two that could not both be true.
+
+**The fix does not use a lock file.** AutoJs6 lists the scripts it is running,
+and each one can name the file it came from. Measured before anything was
+written (`probe_engines.js`): two copies started eight seconds apart, and the
+second saw the first within twenty milliseconds.
+
+Because the answer lives in memory, there is nothing to leave behind. A phone
+switched off mid-session comes back clean - which a lock file would not, and a
+stale lock file that nobody clears is a phone that never runs again.
+
+Engine ids count upwards, so **the older copy keeps the phone and the newer one
+stands down**. That rule is not decoration: without it, two copies starting in
+the same instant would each see the other and both politely quit, leaving the
+phone doing nothing at all.
+
+One deliberate choice, in the other direction: if the check itself cannot run -
+an older build, a missing `engines` object - the script carries on rather than
+refusing to start. Nothing restarts this script, so a phone that wrongly stands
+down is idle until a human notices. Running twice is bad; running never is
+worse.
+
+**What it does not catch.** Copies are matched by the file they were started
+from. A stale copy left in a second folder is a different path, so two copies
+would still run side by side without either noticing. That is the older problem
+described in `DEPLOY.md` - keep exactly one copy on the phone - and this check
+does not replace it. Matching on path is what makes the check free of a lock
+file, so the two failures are worth keeping apart rather than trying to solve
+both at once.
+
+---
+
+## What the farm actually turned out to be
+
+The plan said Samsung on Android 11 to 13, running the same TikTok build as the
+test phone. Neither was true. Measured on 2026-07-23:
+
+| | test phone | the real farm |
+|---|---|---|
+| Model | Xiaomi 13T | Galaxy A9 (2018), Galaxy A8+ (2018) |
+| Android | 16 | **9 and 10** |
+| TikTok | `com.ss.android.ugc.trill` | **`com.zhiliaoapp.musically`** |
+
+Older phones and a different TikTok build than anything that had been tested,
+and it worked: 445 videos across four phones on the first day, like rates
+within a point of what each phone was configured for.
+
+One difference does show up in the numbers. Buttons not found, first day:
+
+```
+farm-01   Android 10    0
+farm-02   Android 9     1
+farm-03   Android 9    12    (8 of them in a single session)
+```
+
+The stop threshold is 8 **in a row**, so it never tripped, but the split is by
+Android version rather than by chance. Something is named differently on the
+older build. Nobody has run a probe on an Android 9 phone yet to find out what.
+
+---
+
 ## Still open
 
-- No Samsung phone on Android 11-13 has ever run this. That is the real test.
-- Two copies of the script can run at once. Needs a lock.
-- The schedule has never survived a full day; Android may kill it.
+- Which button the Android 9 phones keep missing. Needs `probe.js` run on one.
 - The login and captcha `stop_signals` have never actually fired, so they are
   unproven.
 - Some conversations have no quick-send bar at all - `Nguyen Anh Phong Ho` is
