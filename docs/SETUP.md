@@ -62,6 +62,33 @@ mid-session, the script simply stops. Each manufacturer hides this differently.
 - Settings → Apps → AutoJs6 → Battery → **Unrestricted**
 - Turn off **Adaptive battery**
 
+**Never force-stop AutoJs6**
+
+Measured on a Galaxy A8+ on 2026-07-23: `adb shell am force-stop
+org.autojs.autojs6` also switches its accessibility permission back off. Android
+does that to any accessibility service that is force-stopped, and it says
+nothing about it. The next script to run then hangs at `auto.waitFor()` forever,
+looking exactly like a phone that is merely idle.
+
+Anything that force-stops the app does this — a task manager, a cleaner app, or
+a person swiping it away from Recents. To put it back without touching the
+phone:
+
+```bash
+adb -s <phone id> shell "settings put secure enabled_accessibility_services \
+  org.autojs.autojs6/org.autojs.autojs.core.accessibility.AccessibilityServiceUsher; \
+  settings put secure accessibility_enabled 1"
+```
+
+To check a phone that has gone quiet:
+
+```bash
+adb -s <phone id> shell settings get secure enabled_accessibility_services
+```
+
+An empty answer means the permission is gone, whatever the app looks like on
+screen.
+
 **Xiaomi (MIUI / HyperOS)**
 
 - Settings → Apps → AutoJs6 → **Autostart: on**
