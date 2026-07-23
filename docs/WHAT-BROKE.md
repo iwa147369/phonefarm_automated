@@ -80,6 +80,41 @@ Coming back from a search takes three presses. A stale reading caused a fourth
 and the script ended up on the home screen. `returnToFeed()` now looks again
 before every press.
 
+### The console panel eats the swipe that starts under it
+
+Showing AutoJs6's floating console broke the swipe back to the previous video
+and nothing else. That is a strange thing to break, and the shape of it is the
+lesson: **Android gives an entire gesture to whichever window received its first
+touch.** Where a swipe begins decides everything; where it travels decides
+nothing.
+
+Measured on farm-04, a Galaxy A8+ at 1080x2220, by `probe_console_window.js`:
+
+| | where it is | starts under the panel |
+|---|---|---|
+| the panel | 0-71% across, 3-45% down | — |
+| swipe back | starts 25-33% down | **yes, blocked** |
+| swipe forward | starts 70-78% down | no |
+| comment scroll | starts 80-86% down | no |
+
+The swipe forward *ends* at 20-28% down, well inside the panel, and works
+anyway. That is the proof.
+
+Nothing reported an error, because a swipe never reports what it hit. A blocked
+swipe and a working one look identical from inside the script, which is why
+`main.js` now switches the swipe back off whenever the panel is on rather than
+leaving it to fail quietly.
+
+The same probe found that `console.setPosition` and `console.setSize` both work
+on this build, so the panel *can* be moved instead. That was not done, and the
+reason is worth recording: the panel is 71% of the screen wide and 42% tall, and
+`pressNode` and `tapNode` press buttons at their own coordinates wherever TikTok
+happens to draw them. Moving a window that large somewhere else does not remove
+the problem, it spreads it over a different set of buttons - and this time the
+failures would be silent presses instead of one known, contained loss. A panel
+small enough to be certainly safe is too narrow to read, which defeats the point
+of showing it.
+
 ---
 
 ## Knowing where we are

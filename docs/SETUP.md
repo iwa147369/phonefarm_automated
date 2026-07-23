@@ -114,8 +114,19 @@ rather than leaving TikTok halfway through an action.
 
 ## Watching what it does
 
-The AutoJs6 console on the phone prints every action. You can also read the same
-output from your laptop:
+The AutoJs6 console on the phone prints every action, and `main.js` now leaves
+that panel on screen so you can read a phone by picking it up. It costs the
+occasional swipe back to the previous video, which is switched off while the
+panel is showing — see `show_console_window` in `main.js` for why, and
+`docs/WHAT-BROKE.md` for the measurements.
+
+To hide the panel on one phone, add this to its file in `config/devices/`:
+
+```json
+"show_console_window": false
+```
+
+Either way the same output is readable from your laptop:
 
 ```bash
 adb logcat -d | grep GlobalConsole | tail -40
@@ -269,6 +280,15 @@ which is how we learned what the send button is called. It will only ever choose
 the name written into `SHARE_TO` at the top of the file, so set that to an
 account you own. If it turns out that choosing sends after all, the video should
 land somewhere harmless.
+
+**`probe_console_window.js`** — measures where AutoJs6's floating console panel
+sits, and whether it can be moved. It touches nothing outside AutoJs6, and puts
+the panel back where it found it.
+
+Run it on any phone whose swipes stop working once the panel is shown. It prints
+the panel's real position as a percentage of that phone's screen and says which
+of the script's swipes begin underneath it. The findings for a Galaxy A8+ are in
+`docs/WHAT-BROKE.md`.
 
 **`probe_engines.js`** — asks what one running script can see about the others.
 Read-only: it starts nothing and stops nothing. Run it, then run it again within

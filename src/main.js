@@ -75,6 +75,9 @@ var SETTINGS = {
 
   // Occasionally swipe back to the previous video. Pointless on purpose:
   // perfectly efficient behaviour is what makes a bot obvious.
+  //
+  // Forced to zero when show_console_window is on, because the console panel
+  // covers the part of the screen this swipe starts from. See that setting.
   chance_of_swipe_back: 0.04,
 
   // ---- Telling TikTok what we are interested in ----
@@ -272,18 +275,35 @@ var SETTINGS = {
 
   // Show AutoJs6's floating console window on the phone.
   //
-  // Off, and for a good reason: that window is a large translucent panel over
-  // the top-left of the screen, roughly 2-68% across and 5-45% down. Anything
-  // the script swipes through that area lands on the panel instead of TikTok.
+  // On, because a farm nobody can watch is a farm nobody can debug. Without
+  // this panel the only way to see what a phone is doing is adb logcat from a
+  // laptop, which means a cable, a free hand, and knowing which phone is which.
   //
-  // It broke the swipe back to the previous video, which starts around 30%
-  // down and so began inside the panel every time. The swipe to the next video
-  // starts lower and was unaffected, which is why only one of them failed -
-  // and failed silently, since a swipe reports nothing about what it hit.
+  // It costs the swipe back to the previous video, and that trade is deliberate.
+  // The panel is a large translucent window over the top-left of the screen,
+  // roughly 2-68% across and 5-45% down. Android gives a whole gesture to
+  // whichever window received its first touch, so what matters is where a swipe
+  // begins, not where it travels: the swipe back begins around 30% down, inside
+  // the panel, and never reaches TikTok, while the swipe forward begins near
+  // 74%, below the panel, and works even though it ends inside it.
   //
-  // The log is still readable without it, from the laptop:
+  // So when this is on, the swipe back is switched off rather than left to fail.
+  // A swipe reports nothing about what it hit, which means a broken one looks
+  // exactly like a working one - the failure we would never see is the one worth
+  // designing out.
+  //
+  // Two things here are still unmeasured, and both argue for turning this off on
+  // any phone nobody is actively watching. The percentages were measured on the
+  // Xiaomi test phone, not on the farm's older and narrower screens. And an
+  // overlay makes Android mark the touches beneath it as obscured, which an app
+  // could in principle read as a bot signal; nobody has checked whether TikTok
+  // does. To turn it off for one phone, in its config/devices file:
+  //
+  //   "show_console_window": false
+  //
+  // Either way the log is still readable from a laptop:
   //   adb logcat -d | grep GlobalConsole | tail -40
-  show_console_window: false
+  show_console_window: true
 };
 
 // ============================================================================
@@ -542,8 +562,11 @@ var TIKTOK_PACKAGES = [
 
 auto.waitFor();
 
-// Only show the floating console if asked. See show_console_window above: it
-// covers the top-left of the screen and swallows swipes that pass through it.
+// Show the console straight away, before this phone's own settings are read.
+// A phone that turned it off gets it hidden again a moment later, once those
+// settings load. Doing it in this order means the startup messages - including
+// the refusal to run a second copy - are on screen for every phone, which is
+// exactly when somebody standing over the farm needs to see them.
 if (SETTINGS.show_console_window) console.show();
 
 var stopRequested = false;
@@ -629,6 +652,35 @@ function applyDeviceConfig() {
 
   mergeSettings(SETTINGS, parsed);
   return true;
+}
+
+/**
+ * Settle the console window and the swipe back, which cannot both be had.
+ *
+ * Call this once, after this phone's own settings are loaded - either of them
+ * can be changed there, so deciding any earlier decides on the wrong values.
+ *
+ * The two settings are kept separate on purpose. Nobody editing a phone's
+ * config should have to remember that turning the panel on means turning the
+ * swipe off; forgetting would not break anything visibly, it would just quietly
+ * make every swipe back a miss. So the code does the remembering, and says so.
+ */
+function settleConsoleWindow() {
+  try {
+    if (SETTINGS.show_console_window) console.show();
+    else console.hide();
+  } catch (e) {
+    // Not worth stopping a night's browsing over a window. Say it plainly:
+    // somebody watching for the panel should learn why it never appeared.
+    console.warn("Could not " + (SETTINGS.show_console_window ? "show" : "hide") +
+                 " the console window (" + e + "). Carrying on.");
+  }
+
+  if (SETTINGS.show_console_window && SETTINGS.chance_of_swipe_back > 0) {
+    SETTINGS.chance_of_swipe_back = 0;
+    console.log("Swipe back is off while the console panel is on - the panel");
+    console.log("covers the part of the screen that swipe starts from.");
+  }
 }
 
 // ---------------------------------------------------------------- utilities
@@ -2739,6 +2791,7 @@ if (!tiktokPackage) {
 
 // Load this phone's own settings before anything reads them.
 var hasOwnConfig = applyDeviceConfig();
+settleConsoleWindow();
 
 console.log("Phone   : " + device.brand + " " + device.model +
             " (Android " + device.release + ")");
