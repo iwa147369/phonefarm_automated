@@ -546,13 +546,37 @@ function runOnSchedule() {
  * copies start in the same instant and each sees the other: without it both
  * would politely quit and the phone would do nothing at all.
  */
+/**
+ * The same file, spelled the same way every time.
+ *
+ * /sdcard is a link to /storage/emulated/0, so one copy of this script can be
+ * running as "/sdcard/脚本/main.js" and another as
+ * "/storage/emulated/0/脚本/main.js" - the same file under two names. Started
+ * from the AutoJs6 file list you get one spelling; started by tools/run.sh you
+ * get the other.
+ *
+ * Comparing the names as text made those two look like different scripts, so
+ * the check below waved both through. Two copies browsed the same phone all
+ * evening on 2026-07-23 while a check written to prevent exactly that watched
+ * them do it.
+ *
+ * Falls back to the name as given, which is no worse than what it replaced.
+ */
+function samePathEveryTime(path) {
+  try {
+    return String(new java.io.File(path).getCanonicalPath());
+  } catch (e) {
+    return String(path);
+  }
+}
+
 function anotherCopyIsRunning() {
   if (!SETTINGS.single_instance) return false;
 
   var myPath, myId, all;
   try {
     var me = engines.myEngine();
-    myPath = String(me.getSource().getFullPath());
+    myPath = samePathEveryTime(me.getSource().getFullPath());
     myId = Number(me.getId());
     all = engines.all();
   } catch (e) {
@@ -574,7 +598,7 @@ function anotherCopyIsRunning() {
     try {
       otherId = Number(all[i].getId());
       if (otherId === myId) continue;                                  // this one
-      if (String(all[i].getSource().getFullPath()) !== myPath) continue; // another script
+      if (samePathEveryTime(all[i].getSource().getFullPath()) !== myPath) continue;
     } catch (e) {
       continue;   // cannot read it, so cannot judge it
     }
