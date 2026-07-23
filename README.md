@@ -128,7 +128,10 @@ phonefarm_automated/
 │       ├── persona-early-riser.json
 │       └── persona-night-owl.json
 ├── src/
-│   ├── main.js                    # the browsing script - defaults are at the top
+│   ├── main.js                    # the browsing script
+│   ├── lib/                       # the parts main.js loads - these go on the phone too
+│   │   ├── settings.js            # the defaults, and why each one is what it is
+│   │   └── labels.js              # what TikTok's buttons are called
 │   └── probes/                    # diagnostic tools, kept off the phones
 │       ├── probe.js               # prints every button on screen
 │       ├── probe_button_state.js  # how a button shows it is already switched on
@@ -141,7 +144,10 @@ phonefarm_automated/
 │       ├── probe_sticker_picker.js# why the sticker grid was rejected
 │       ├── probe_send_reaction.js # sends ONE sticker, with five checks first
 │       ├── probe_share_to_user.js # the share panel's people row, read-only
-│       └── probe_share_select.js  # picks a person, stops before Send
+│       ├── probe_share_select.js  # picks a person, stops before Send
+│       ├── probe_engines.js       # what one running script can see of the others
+│       ├── probe_require.js       # can a script on the phone load a second file
+│       └── probe_console_window.js# where the console panel sits, and can it move
 ├── tools/
 │   ├── deploy.sh                  # send main.js and each phone's settings
 │   ├── run.sh                     # send one script and start it, from your laptop
@@ -154,7 +160,7 @@ phonefarm_automated/
     └── WHAT-BROKE.md              # every trap, and why each rule exists
 ```
 
-**Only `main.js` goes on a phone.** The probes stay on the laptop, and `run.sh`
+**Only `main.js` and `src/lib/` go on a phone.** The probes stay on the laptop, and `run.sh`
 sends one over when you need it. Several of them press buttons, and two send
 something that cannot be taken back — `probe_send_reaction.js` sends a sticker,
 `probe_share_select.js` chooses a person in the share panel. Leaving those on a
@@ -165,13 +171,15 @@ They are worth keeping, though. Each one answers a question that is dangerous to
 guess at, and every answer in section 4 came from one of them. When TikTok
 changes its app, they are how you find out what changed.
 
-`main.js` is one file rather than many small ones. That is on purpose: it is pushed and run as a single unit, so a change is one copy and one restart. Splitting it would mean several files having to arrive on the phone together and load each other correctly — a new way for things to break, in exchange for tidiness. Worth revisiting once the farm is running, not before.
+`main.js` was one file for a long time, on the grounds that a single file is pushed and run as a unit and cannot arrive half-finished. That was the right call while nothing was known about loading a second file on these phones. `probe_require.js` settled it: `require()` works on the farm's Android 9 phones, finds files in a subfolder, and throws catchably when one is missing — so a half-finished push is something the code can notice and refuse, rather than something it silently runs on.
 
-The probes repeat a few small helpers instead of sharing them, for the same kind of reason: they are what you reach for when TikTok has changed and nothing works, so each has to run from a single file on its own.
+What has moved out so far is the two parts that are pure reference: `lib/settings.js` and `lib/labels.js`. Both are text somebody has to read and edit under pressure, which is the worst thing to bury in the middle of 2800 lines. `deploy.sh` and `run.sh` send `lib/` first and will not send `main.js` if any of it fails to arrive.
+
+The probes repeat a few small helpers instead of sharing them, and that has not changed: they are what you reach for when TikTok has changed and nothing works, so each has to run from a single file on its own.
 
 ## 8. Settings
 
-The defaults sit in a `SETTINGS` block at the top of `src/main.js`. Every phone runs that same file.
+The defaults sit in a `SETTINGS` block in `src/lib/settings.js`. Every phone runs that same file.
 
 **What makes one phone different from another is its own settings file.** `config/devices/` holds one per phone, naming the phone by its adb serial and listing only what differs:
 
@@ -399,7 +407,7 @@ This decides how long the script keeps working. These rules are not optional.
 
 | Risk | Likelihood | What we do about it |
 |---|---|---|
-| A TikTok update renames the buttons | **High** — expect it | All labels sit in one block in `main.js`. `probe.js` finds the new ones in about ten seconds |
+| A TikTok update renames the buttons | **High** — expect it | All labels sit in `src/lib/labels.js`. `probe.js` finds the new ones in about ten seconds |
 | Android shuts down the automation service in the background | Medium | Setup instructions cover the battery settings, per manufacturer |
 | An account gets restricted | Medium | Low interaction rates, slow ramp-up, different personality per phone |
 | Many phones on one internet connection look linked | Medium | Outside what the script can fix. Needs a decision on separate mobile data or proxies |

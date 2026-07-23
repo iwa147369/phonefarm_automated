@@ -93,6 +93,22 @@ AutoJs6 reads scripts from **`/sdcard/脚本/`**. That word is Chinese for
 phone is set to English. Do not create a second folder with an English name: the
 app will not read it, and you will end up running an old copy by mistake.
 
+`main.js` is in several pieces. The parts it loads live in `脚本/lib/` beside it,
+matching `src/lib/` on your laptop:
+
+```
+/sdcard/脚本/main.js
+/sdcard/脚本/lib/settings.js     the defaults, and why each one is what it is
+/sdcard/脚本/lib/labels.js       what TikTok's buttons are called
+/sdcard/脚本/device.json         this phone's own settings
+```
+
+Both `run.sh` and `deploy.sh` send `lib/` before `main.js`, and neither will send
+`main.js` if any part of `lib/` fails to arrive. A phone left with older parts
+keeps working; one given a new `main.js` without its parts cannot start at all,
+and refuses loudly rather than browsing with half of itself missing. Copying
+`main.js` across by hand is no longer enough.
+
 ## The quick way: from your laptop
 
 ```bash
@@ -136,9 +152,9 @@ adb logcat -d | grep GlobalConsole | tail -40
 
 # The scripts
 
-`main.js` is the only one that belongs on a phone. The rest are diagnostic tools
-that live in `src/probes/` on your laptop; `run.sh` sends one over when you ask
-for it by name:
+`main.js` and the files in `src/lib/` are the only ones that belong on a phone.
+The rest are diagnostic tools that live in `src/probes/` on your laptop;
+`run.sh` sends one over when you ask for it by name:
 
 ```bash
 ./tools/run.sh probe.js
@@ -280,6 +296,16 @@ which is how we learned what the send button is called. It will only ever choose
 the name written into `SHARE_TO` at the top of the file, so set that to an
 account you own. If it turns out that choosing sends after all, the video should
 land somewhere harmless.
+
+**`probe_require.js`** — asks whether a script on the phone can load a second
+file. It writes two small test files in its own folder, tries to load them, and
+deletes them again; nothing else is touched.
+
+Run it before splitting anything else out of `main.js`, or on any phone where
+`main.js` says it could not load one of its parts. On a Galaxy A8+ running
+Android 9 it answered yes to all five questions: `require()` exists, finds a
+file beside the script and one in a subfolder, hands every caller the same
+object, and throws catchably when a file is missing.
 
 **`probe_console_window.js`** — measures where AutoJs6's floating console panel
 sits, and whether it can be moved. It touches nothing outside AutoJs6, and puts

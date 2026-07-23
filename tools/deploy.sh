@@ -31,6 +31,7 @@ set -euo pipefail
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SRC_DIR="$PROJECT_DIR/src"
 PROBE_DIR="$PROJECT_DIR/src/probes"
+LIB_DIR="$PROJECT_DIR/src/lib"
 CONFIG_DIR="$PROJECT_DIR/config/devices"
 # AutoJs6 reads scripts from /sdcard/脚本 - that word is Chinese for "scripts",
 # and the folder keeps that name even when the phone is set to English.
@@ -141,6 +142,12 @@ if [[ ${#FILES[@]} -eq 0 ]]; then
   exit 1
 fi
 
+# main.js is split across src/lib/, and it cannot start without those files.
+LIB_FILES=()
+if [[ -d "$LIB_DIR" ]]; then
+  mapfile -t LIB_FILES < <(find "$LIB_DIR" -maxdepth 1 -name '*.js' -type f | sort)
+fi
+
 # ---------------------------------------------------------------- devices
 
 # Read the device ids adb reports as ready. Lines look like "a1b2c3d4  device";
@@ -207,6 +214,14 @@ check_for_stale_files() {
   done < <(adb -s "$device" shell "ls '$REMOTE_DIR'" 2>/dev/null \
              | tr -d '\r' | grep '\.js$' || true)
 
+  # A leftover module is worse than a leftover script: nobody runs it on
+  # purpose, main.js just quietly loads it instead of the one that replaced it.
+  while read -r name; do
+    [[ -z "$name" ]] && continue
+    [[ -f "$LIB_DIR/$name" ]] || stale+=("lib/$name")
+  done < <(adb -s "$device" shell "ls '$REMOTE_DIR/lib'" 2>/dev/null \
+             | tr -d '\r' | grep '\.js$' || true)
+
   [[ ${#stale[@]} -eq 0 ]] && return 0
 
   if [[ $CLEAN -eq 1 ]]; then
@@ -242,6 +257,9 @@ for device in "${DEVICES[@]}"; do
   device_config="$(config_for_device "$device" || true)"
 
   if [[ $DRY_RUN -eq 1 ]]; then
+    for f in "${LIB_FILES[@]+"${LIB_FILES[@]}"}"; do
+      echo "    would copy lib/$(basename "$f")"
+    done
     for f in "${FILES[@]}"; do
       echo "    would copy $(basename "$f")"
     done
@@ -260,6 +278,28 @@ for device in "${DEVICES[@]}"; do
   if ! adb -s "$device" shell mkdir -p "'$REMOTE_DIR'" >/dev/null 2>&1; then
     echo "    could not create $REMOTE_DIR"
     device_ok=0
+  fi
+
+  # The modules go before main.js, and a failure here stops this phone getting
+  # main.js at all. A phone left with old modules and an old main.js keeps
+  # browsing; one given a new main.js without its modules cannot start, and
+  # nobody would find out until the next time somebody looked.
+  if [[ $device_ok -eq 1 && ${#LIB_FILES[@]} -gt 0 ]]; then
+    if ! adb -s "$device" shell mkdir -p "'$REMOTE_DIR/lib'" >/dev/null 2>&1; then
+      echo "    could not create $REMOTE_DIR/lib"
+      device_ok=0
+    fi
+
+    for f in "${LIB_FILES[@]}"; do
+      [[ $device_ok -eq 1 ]] || break
+      name="$(basename "$f")"
+      if adb -s "$device" push "$f" "$REMOTE_DIR/lib/$name" >/dev/null 2>&1; then
+        echo "    copied lib/$name"
+      else
+        echo "    FAILED to copy lib/$name - not sending main.js either"
+        device_ok=0
+      fi
+    done
   fi
 
   if [[ $device_ok -eq 1 ]]; then

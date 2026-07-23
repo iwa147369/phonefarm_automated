@@ -3,558 +3,100 @@
  *
  * What it does: opens TikTok, watches videos in the For You feed, and now and
  * then likes one, saves one, reads the comments, or copies a link to share.
- * How often it does each is set in SETTINGS below. It stops by itself when the
+ * How often it does each is set in lib/settings.js. It stops by itself when the
  * session time runs out.
  *
  * It never writes anything: no comments, no replies, no messages.
  *
  * Before the first run: run probe.js to find out what the buttons are called
- * on your TikTok version, then check the BUTTON LABELS section below.
+ * on your TikTok version, then check lib/labels.js.
  *
  * To stop early: press the volume-up key, or stop the script from AutoJs6.
  */
 
 // ============================================================================
-// SETTINGS - change these, no other file needed
-// ============================================================================
-
-// Where this phone's own settings live.
-//
-// Every phone in the farm runs this same file. What makes one phone different
-// from another is device.json beside it, which tools/deploy.sh puts there. It
-// only needs to list what differs from the defaults below.
-//
-// This matters more than it looks. Each session already varies its own timing,
-// but if twelve phones all wake at seven, all like a fifth of what they see,
-// and all search for the same words, that is a pattern no amount of
-// per-session randomness hides.
-var DEVICE_CONFIG_FILE = "/sdcard/脚本/device.json";
-
-var SETTINGS = {
-  // Which phone this is. Comes from device.json; only used in logs.
-  device_id: "",
-
-  // How long one session lasts, in minutes. Two numbers means a range, picked
-  // fresh each time; a farm where every session is exactly ten minutes long is
-  // a pattern worth avoiding.
-  session_minutes: [8, 22],
-
-  // How often to do each action, as a share of videos watched.
-  // 0.20 means "on about 20 out of every 100 videos".
-  rates: {
-    like: 0.20,
-    save: 0.05,
-
-    // Opened and read, never written to.
-    read_comments: 0.05,
-
-    // Slow (about ten seconds) and the panel lists real people, so keep it low.
-    // Only "Copy link" is ever pressed.
-    share: 0.01
-  },
-
-  // How long to stay on a video, in seconds.
-  // Most videos get a short look; a few get watched properly. That mix is what
-  // real viewing looks like, so we copy it.
-  watch: {
-    short_seconds: [3, 9],
-    long_seconds: [10, 28],
-    chance_of_long_watch: 0.30,
-
-    // Now and then skip almost immediately, the way people do.
-    chance_of_instant_skip: 0.10,
-    instant_skip_seconds: [1, 2]
-  },
-
-  comments: {
-    // Zero is deliberately in range: plenty of videos have only a handful of
-    // comments, and swiping at a list that cannot move is not what people do.
-    scrolls: [0, 2],
-    read_seconds: [1.5, 3]
-  },
-
-  // Occasionally swipe back to the previous video. Pointless on purpose:
-  // perfectly efficient behaviour is what makes a bot obvious.
-  //
-  // Forced to zero when show_console_window is on, because the console panel
-  // covers the part of the screen this swipe starts from. See that setting.
-  chance_of_swipe_back: 0.04,
-
-  // ---- Telling TikTok what we are interested in ----
-  //
-  // Searching for a topic and watching the results is the strongest signal we
-  // can send about what an account cares about. Once a day is enough; several
-  // times would look odd. Nothing happens while keywords is empty.
-  seed: {
-    enabled: true,
-    keywords: [],
-    videos_to_watch: [3, 6],
-    once_per_day: true
-  },
-
-  // ---- Replying to messages ----
-  //
-  // People check their messages before they start scrolling, and an account
-  // that receives shares and never responds looks like something being sprayed
-  // at rather than somebody using an app.
-  //
-  // Only a sticker from the quick-send bar is ever sent. Never typed, never
-  // the sticker grid, never the message box. Does nothing until reply_to has
-  // names in it.
-  messages: {
-    enabled: false,
-
-    // How often a session begins by looking at the inbox. Not every session:
-    // somebody who opens their messages every single time is its own pattern.
-    chance_of_checking: 0.30,
-
-    // WHO WE MAY REPLY TO. Exact names as they appear in the inbox. Names, not
-    // "the first few" - the top of a real inbox is New followers and Activity,
-    // and a stranger messaging you takes the top slot from whoever was there.
-    reply_to: [],
-
-    // Keep small. Leaving some unread is what a real inbox looks like.
-    max_replies: [1, 2],
-    chance_of_replying: 0.6,
-
-    // Only these three have been checked. "Effects" and "Cards" sit on the same
-    // bar and nobody has established what they do.
-    reactions: ["Heart", "Lol", "ThumbsUp"]
-  },
-
-  // ---- Sending a video to one of our own accounts ----
-  //
-  // The other half of the messages feature. Replying only happens when there
-  // is something to reply to, and nothing else the script does puts anything
-  // in anybody's inbox - ordinary sharing only copies a link. So without this,
-  // replying almost never fires.
-  //
-  // Together they make one exchange: this phone sends a video, the other
-  // account answers with a sticker at the start of its next session, which may
-  // be hours later. The delay is not simulated - it falls out of the schedule.
-  //
-  // Off by default, and does nothing until send_to has names in it.
-  send_to_friend: {
-    enabled: false,
-
-    // How often, as a share of videos watched. Keep it well below the like
-    // rate: people send each other the odd video, not one in five.
-    rate: 0.01,
-
-    // WHICH ACCOUNTS MAY RECEIVE A VIDEO. Exact names, as they appear in the
-    // share panel. Nothing else is ever pressed.
-    //
-    // Put only your own accounts here. There is no undo, and the row this
-    // reads from is full of real people.
-    send_to: [],
-
-    // At most this many in one session, however many videos get watched. One
-    // account sending a stream of videos to another all evening is a pattern,
-    // and not a human one.
-    max_per_session: 2,
-
-    // ---- Sending to somebody who is not on the list ----
-    //
-    // Off, and think before turning it on. Everybody else in that row is a real
-    // person who did not ask for this; they can block or report, and most will
-    // never answer - and videos nobody responds to is what spam looks like from
-    // outside. It also gives up the safety argument, since a name we cannot
-    // find is a send that does not happen.
-    //
-    // If you turn it on, keep chance_of_anyone small, or the reply half of this
-    // never fires - strangers do not send stickers back.
-    allow_anyone: false,
-
-    // When allowed, how often a send goes to somebody off the list.
-    chance_of_anyone: 0.2,
-
-    // Never sent to, whatever else is set. Exact names. Use this for anybody
-    // real who must not be contacted by a script - a customer, a supplier, a
-    // personal account that happens to share the phone.
-    never_send_to: [],
-
-    // If every phone sends to every other phone and they all answer, the farm
-    // becomes a closed circle - accounts registered together, talking only to
-    // each other, always replying. Each session looks human; the shape of the
-    // whole thing does not. Give each phone one or two names, not all of them.
-  },
-
-  // ---- When sessions happen ----
-  //
-  // Leave enabled off and the script runs one session and stops, which is what
-  // you want while testing. Turn it on and the script stays running, waking up
-  // for a few sessions a day at sensible hours.
-  //
-  // Why this matters: a phone that browses whenever someone remembers to press
-  // start - including at three in the morning - looks nothing like a person,
-  // no matter how human each individual session is.
-  schedule: {
-    enabled: false,
-
-    // Hours of the day the account is awake, as [from, to] in 24-hour time.
-    // Nothing happens outside these.
-    active_hours: [[7, 9], [12, 14], [19, 23]],
-
-    // How many sessions to aim for in a day. Picked fresh each morning.
-    sessions_per_day: [3, 5],
-
-    // How long to wait between sessions, in minutes.
-    gap_minutes: [45, 180],
-
-    // Some days people barely open the app. On a lazy day we run about a third
-    // as many sessions.
-    chance_of_lazy_day: 0.15,
-
-    // Where the script remembers what it has already done today. Without this
-    // it would start a fresh burst of sessions every time Android restarts it.
-    state_file: "/sdcard/脚本/farm_state.json"
-  },
-
-  // ---- Going easy on a new account ----
-  //
-  // A day-old account that likes twenty percent of everything it sees looks
-  // wrong. These stages hold the rates down at first and let them grow.
-  //
-  // Set account_started to the date the account was created, as "YYYY-MM-DD",
-  // to switch this on. Left empty, the rates above are used from day one.
-  ramp_up: {
-    account_started: "",
-
-    stages: [
-      // For the first week: watch, and little else.
-      { first_days: 7,
-        rates: { like: 0.05, save: 0, read_comments: 0.02, share: 0 } },
-
-      // Weeks two and three: start saving and reading comments.
-      { first_days: 21,
-        rates: { like: 0.12, save: 0.03, read_comments: 0.04, share: 0.005 } }
-
-      // After that the full rates above apply.
-    ]
-  },
-
-  // Stop the session if the battery drops below this percentage.
-  minimum_battery_percent: 20,
-
-  // ---- Noticing when something has gone wrong ----
-  //
-  // Nobody watches a farm phone. These are the things that would otherwise let
-  // a phone carry on doing nothing useful for hours.
-  watchdog: {
-    // Give up after this many actions in a row fail to find their button.
-    //
-    // One or two misses are normal - a video may still be loading. A long run
-    // of them means the buttons have been renamed, which happens whenever
-    // TikTok updates. Carrying on would be pointless, and a phone swiping at
-    // nothing for hours is not a good look either.
-    stop_after_missed_buttons: 8,
-
-    // Where each phone leaves a note about how its last sessions went, so the
-    // farm can be checked without picking up every phone. Bounded in size.
-    status_file: "/sdcard/脚本/farm_status.json",
-    keep_recent_sessions: 20
-  },
-
-  // Refuse to start when another copy of this script is already running.
-  //
-  // On 2026-07-23 farm-03 ran two copies at once: one session from 17:04 to
-  // 17:18, another from 17:05 to 17:20. Both counted their own sessions into
-  // the same file, so it recorded 2 sessions on a day that actually ran 5, and
-  // the daily limit stopped meaning anything. A phone browsing twice as much
-  // as planned is the opposite of what the schedule is for.
-  //
-  // Starting the script does not stop a copy that is already going, and
-  // nothing on the phone makes that obvious - both copies look healthy.
-  //
-  // Turning this off restores the old behaviour. There is no good reason to,
-  // but a check that cannot be switched off is one that can strand a farm.
-  single_instance: true,
-
-  // Print every action to the AutoJs6 console.
-  verbose: true,
-
-  // Show AutoJs6's floating console window on the phone.
-  //
-  // On, because a farm nobody can watch is a farm nobody can debug. Without
-  // this panel the only way to see what a phone is doing is adb logcat from a
-  // laptop, which means a cable, a free hand, and knowing which phone is which.
-  //
-  // It costs the swipe back to the previous video, and that trade is deliberate.
-  // The panel is a large translucent window over the top-left of the screen,
-  // roughly 2-68% across and 5-45% down. Android gives a whole gesture to
-  // whichever window received its first touch, so what matters is where a swipe
-  // begins, not where it travels: the swipe back begins around 30% down, inside
-  // the panel, and never reaches TikTok, while the swipe forward begins near
-  // 74%, below the panel, and works even though it ends inside it.
-  //
-  // So when this is on, the swipe back is switched off rather than left to fail.
-  // A swipe reports nothing about what it hit, which means a broken one looks
-  // exactly like a working one - the failure we would never see is the one worth
-  // designing out.
-  //
-  // Two things here are still unmeasured, and both argue for turning this off on
-  // any phone nobody is actively watching. The percentages were measured on the
-  // Xiaomi test phone, not on the farm's older and narrower screens. And an
-  // overlay makes Android mark the touches beneath it as obscured, which an app
-  // could in principle read as a bot signal; nobody has checked whether TikTok
-  // does. To turn it off for one phone, in its config/devices file:
-  //
-  //   "show_console_window": false
-  //
-  // Either way the log is still readable from a laptop:
-  //   adb logcat -d | grep GlobalConsole | tail -40
-  show_console_window: true
-};
-
-// ============================================================================
-// BUTTON LABELS - update these using the output of probe.js
+// THE OTHER FILES THIS ONE NEEDS
 // ============================================================================
 //
-// Each entry is a list of things to try, in order. The first one that matches
-// wins. Several options are listed because TikTok words these differently
-// between app versions.
+// Parts of this script live in lib/ beside it. tools/run.sh and tools/deploy.sh
+// send those files first and refuse to send this one if any of them fails to
+// arrive, so a phone is never left with a main.js whose parts are missing.
 //
-// "(?i)" at the start means upper and lower case both match.
-
-// Checked against TikTok 46.1.3 (package com.ss.android.ugc.trill) on an
-// English phone. The real labels look like this:
-//
-//   Like       "Like video. 5,142 likes"
-//   Comment    "Read or add comments. 27 comments"
-//   Favorites  "Add or remove this video from Favorites."
-//   Share      "Share video. 116 shares"
-//   Follow     "Follow <creator name>"
-//
-// Note we never match on the id. TikTok scrambles its ids on every release,
-// and it gives the Like and Share buttons the *same* id, so ids are useless
-// here. The spoken labels are stable and readable, so we use those.
+// Confirmed on a Galaxy A8+ running Android 9 by probe_require.js: require()
+// works, finds a file in a subfolder, and hands every caller the same object,
+// so a module can hold state that the whole script shares.
 
 /**
- * Turn patterns into the list of matchers findOnScreen expects.
+ * The lib/ folder, worked out from where this script itself is.
  *
- * A bare pattern is tried against the spoken description first and the visible
- * text second. "d:" restricts it to the description, "t:" to the text.
- *
- * That distinction is not decoration. On the search screen two different
- * buttons are both called "Search", and which one you get depends entirely on
- * whether you asked for desc or text - see docs/WHAT-BROKE.md.
+ * Not written down as a fixed path, and not left relative either. require()
+ * resolves a relative name against the working directory, which on the phones
+ * tested happens to be the script's own folder - but that is a coincidence we
+ * would rather not depend on, and one that would fail silently somewhere else.
+ * Asking the engine where this file is removes the question.
  */
-function labels() {
-  var out = [];
-  for (var i = 0; i < arguments.length; i++) {
-    var p = arguments[i];
-    if (p.indexOf("d:") === 0)      out.push(matching(descMatches, p.substring(2)));
-    else if (p.indexOf("t:") === 0) out.push(matching(textMatches, p.substring(2)));
-    else {
-      out.push(matching(descMatches, p));
-      out.push(matching(textMatches, p));
-    }
+function moduleFolder() {
+  try {
+    var full = String(engines.myEngine().getSource().getFullPath());
+    var cut = full.lastIndexOf("/");
+    if (cut > 0) return full.substring(0, cut) + "/lib/";
+  } catch (e) { /* fall through */ }
+
+  console.warn("Could not work out where this script is. Looking for its");
+  console.warn("other files in ./lib/ and hoping for the best.");
+  return "./lib/";
+}
+
+var MODULE_FOLDER = moduleFolder();
+
+/**
+ * Load one of this script's own files, or stop.
+ *
+ * Stopping is the point. A module that fails to load leaves the script without
+ * something it needs, and carrying on would mean browsing with, say, no button
+ * names at all - swiping past everything, pressing nothing, and reporting a
+ * healthy session at the end of it. Refusing to start is loud; half-working is
+ * not.
+ */
+function requireModule(name) {
+  var path = MODULE_FOLDER + name + ".js";
+  try {
+    return require(path);
+  } catch (e) {
+    console.error("Could not load " + path);
+    console.error("  " + e);
+    console.error("");
+    console.error("This script is in several files and one of them is missing");
+    console.error("or broken. Send them all again:");
+    console.error("  ./tools/deploy.sh");
+    exit();
   }
-  return out;
 }
 
-function matching(how, pattern) {
-  return function () { return how(pattern); };
-}
+// ============================================================================
+// SETTINGS - moved to lib/settings.js
+// ============================================================================
+//
+// The defaults, and the reasoning behind each one, are in lib/settings.js. A
+// phone changes only what it needs in its own device.json, which deploy.sh puts
+// beside this script - see applyDeviceConfig below.
 
-var LABELS = {
-  // Matches both states. Whether it is already liked is checked separately,
-  // because we must never turn someone's like back off.
-  like: labels("d:(?i)^(un)?like video\\b.*", "d:(?i)^(un)?like\\b.*"),
+var settingsModule = requireModule("settings");
+var DEVICE_CONFIG_FILE = settingsModule.DEVICE_CONFIG_FILE;
+var SETTINGS = settingsModule.SETTINGS;
 
-  // How to tell a video is already liked. Confirmed by pressing the button and
-  // watching what changed:
-  //
-  //   not liked  ->  desc "Like video. 186 likes"   selected false
-  //   liked      ->  desc "Like"                    selected true
-  //
-  // Note the trap: TikTok does NOT say "Unlike". It shortens the label to just
-  // "Like" and drops the count. A check looking for the word "unlike" would see
-  // a liked video as unliked, press the button, and take the like back off.
-  //
-  // "selected" is the signal we trust; this pattern is the backstop.
-  already_liked: /^like$/i,
+// ============================================================================
+// BUTTON LABELS - moved to lib/labels.js
+// ============================================================================
+//
+// What TikTok's buttons are called now lives in its own file. That is the part
+// which goes out of date, and the part somebody has to edit in a hurry when a
+// TikTok update stops the farm; it should not be buried in the middle of the
+// machinery. Run probe.js and edit lib/labels.js.
 
-  save: labels(
-    "d:(?i)^add or remove this video from favou?rites.*",
-    "d:(?i).*\\bfavou?rites?\\b.*"),
-
-  // The Favorites label is deliberately neutral - "Add or remove this video
-  // from Favorites." reads the same whether or not the video is saved, so it
-  // can never tell us the state. Only "selected" can, and doSave relies on it.
-  // This pattern is here for TikTok versions that do word the two differently.
-  already_saved: /^remove\b|\b(saved|favou?rited)\b/i,
-
-  share: labels("d:(?i)^share video\\b.*", "d:(?i)^share\\b.*"),
-
-  // ---- Inside the Share panel ----
-  //
-  //   71%  "Send to", Search, Close
-  //   79%  real account names - pressing one messages them
-  //   87%  Repost, COPY LINK, Messenger, WhatsApp, Facebook, Telegram, SMS
-  //   96%  Report, Not interested, Download, Add to Story, Promote, Cast
-  //
-  // Only "Copy link" is safe here. The two rows are 8% apart, about 220
-  // pixels, which is why nothing in this panel is pressed by position.
-
-  // Present only while the panel is open, so it tells us whether it opened,
-  // and more importantly whether it closed again.
-  share_panel_marker: labels("d:(?i)^bottom sheet$"),
-
-  // The X in the top corner of the panel. This is how we get out: the back
-  // action does not close it on Android 16.
-  share_panel_close: labels("(?i)^close$"),
-
-  // The one safe thing to press. Matched exactly - no "contains" - so it can
-  // never drift onto a neighbouring item.
-  share_sheet_safe_option: labels("(?i)^copy link$"),
-
-  // ---- Sending a video to one of our own accounts ----
-  //
-  // Once somebody is chosen the panel grows a message box at 86%, emoji at
-  // 91%, and "Send" at 96%. Choosing is not sending; Send is a second press.
-  //
-  // We match names, never positions, and we cannot read who is selected - so
-  // the guard is that Send must be ABSENT when the panel opens. See
-  // docs/WHAT-BROKE.md, "Sending to a person".
-
-  // Only appears once at least one person is chosen. Its absence when the
-  // panel opens is what tells us nothing is selected yet.
-  share_send_button: labels("(?i)^send$"),
-
-  // Never touched. Listed so it can be recognised and avoided.
-  share_message_box: labels("t:(?i)^write a message.*", "d:(?i)^write a message.*"),
-
-  // How far down the screen the people sit, as a percentage. Read off the
-  // panel, and only used to ignore everything outside it - the row of app
-  // icons underneath is 8% away, about 220 pixels.
-  share_people_band: [72, 86],
-
-  // ---- The Comments panel ----
-  //
-  //   34%   "236 comments", Close
-  //   36%   the list starts, with Reply buttons and hearts mixed through it
-  //   93%   the list ends
-  //   97%   "Add comment...", Stickers, Mention someone, Send Gift
-  //
-  // We read and never write. The hearts carry no readable name, so they cannot
-  // even be recognised to be avoided - and Send Gift spends real money. Inside
-  // this panel we scroll and never tap. See docs/WHAT-BROKE.md.
-
-  // Unlike the Share panel, this one has no "Bottom sheet" marker. The text
-  // box is what gives it away - nothing else on screen says "Add comment".
-  comment_panel_marker: labels("t:(?i)^add comment.*", "d:(?i)^add comment.*"),
-
-  comment_panel_close: labels("(?i)^close$"),
-
-  comments: labels("d:(?i)^read or add comments\\b.*", "d:(?i).*\\bcomments?\\b.*"),
-
-  // ---- Searching for a topic ----
-  //
-  // Two buttons called "Search" on one screen, told apart by desc versus text.
-  // The submit one reports clickable=true and then refuses a proper press, so
-  // it gets a coordinate tap; opening search accepts one normally.
-  // See docs/WHAT-BROKE.md, "Some buttons refuse a proper press".
-
-  // The magnifying glass at the top of the feed. The Share panel has a button
-  // called "Search" too, so this is only ever looked for near the top.
-  search_entry: labels("(?i)^search$"),
-
-  // The button that sends the search, beside the box. Matched on text, because
-  // the magnifying glass beside it is the one carrying the desc.
-  search_submit: labels("t:(?i)^search$"),
-
-  // Only on screen while TikTok is still offering suggestions, so it tells us
-  // whether the search actually went through.
-  search_suggestions: labels("t:(?i)^press and hold on a suggestion.*"),
-
-  // A result on the search results screen. TikTok labels each one
-  // "Video by <creator>, <caption>, Liked by 39.1K users".
-  search_result: labels("d:(?i)^video by .*"),
-
-  // ---- Knowing we are on the For You feed ----
-  //
-  // "For You" names the feed and appears nowhere else. Not the Like button -
-  // every player has one - and not "Search", which the search screen also has.
-  // Both mistakes were made; see docs/WHAT-BROKE.md, "Knowing where we are".
-  feed_marker: labels("(?i)^for you$"),
-
-  // ---- The Inbox and one conversation ----
-  //
-  // The top of the list is not people - "New followers" and "Activity" come
-  // first - so names are matched against reply_to rather than taken by
-  // position. An unread row carries a small View whose label is a NUMBER, and
-  // a preview that does not start with "Sent". Matching the badge by size
-  // instead marks every row unread. See docs/WHAT-BROKE.md.
-
-  inbox_tab: labels("(?i)^inbox$"),
-
-  home_tab: labels("(?i)^home$"),
-
-  // Rows that look like conversations and are not. Opening any of these takes
-  // us to a different screen entirely.
-  not_a_conversation: /^(new followers|activity|system notifications|account not found)$/i,
-
-  // A display name we cannot tell apart from any other. TikTok shows "User" for
-  // accounts that never set a name, and several rows can say it at once.
-  unusable_name: /^(user|users)$/i,
-
-  // Labels TikTok forgot to turn into words. Instead of a description, the app
-  // hands us the name of the thing in its own code:
-  //
-  //   "activebadgeis_active"        a badge saying somebody is online
-  //   "storybadgenone_trueicon"     a badge on the story ring
-  //   "@2131823255"                 a heart on a comment
-  //
-  // They are never a name and never a message, but they sit in the same rows,
-  // and one of them was picked up as an account name. Skipped on sight.
-  internal_label: /^@?\d+$|badge|_active\b|icon$/i,
-
-  // A row's preview line. Ours, so the conversation has nothing new in it.
-  outgoing_preview: /^sent\b/i,
-
-  // ---- Inside a conversation ----
-  //
-  //   93%  Heart  Lol  ThumbsUp  Effects  Cards
-  //   97%  "Message..."
-  //
-  // The bar is there by default and vanishes only when the message box takes
-  // focus - so the rule that keeps it available is the rule that keeps us safe:
-  // never touch the box. All five report clickable=false with a clickable
-  // parent one level up, so pressStrict handles them. Never by position; that
-  // is what sent two stickers nobody asked for. See docs/WHAT-BROKE.md.
-
-  quick_send: {
-    Heart:    labels("^Heart$"),
-    Lol:      labels("^Lol$"),
-    ThumbsUp: labels("^ThumbsUp$")
-  },
-
-  // Every button on the bar. Used to check the bar is fully drawn before we
-  // press anything on it.
-  quick_send_all: ["Heart", "Lol", "ThumbsUp", "Effects", "Cards"],
-
-  // The message box. We look for it to confirm we are in a conversation, and to
-  // confirm the keyboard is shut - and then we leave it alone.
-  message_box: labels("t:(?i)^message\\.*$", "d:(?i)^message\\.*$"),
-
-  // A sticker already in the conversation. Counting these before and after is
-  // how we know a press sent one thing and not two.
-  sent_sticker: labels("(?i)^stickers$"),
-
-  // If any of these appear, something needs a human. We stop.
-  stop_signals: labels(
-    "t:(?i).*(log in|sign up) to tiktok.*",
-    "t:(?i).*verify.*you.*human.*",
-    "t:(?i).*too many attempts.*")
-};
-
-// TikTok ships under different package names by region. We try each in turn.
-var TIKTOK_PACKAGES = [
-  "com.zhiliaoapp.musically",   // TikTok, most countries
-  "com.ss.android.ugc.trill",   // TikTok, some Asian regions
-  "com.ss.android.ugc.tiktok"
-];
+var labelsModule = requireModule("labels");
+var LABELS = labelsModule.LABELS;
+var TIKTOK_PACKAGES = labelsModule.TIKTOK_PACKAGES;
 
 // ============================================================================
 // Everything below is the machinery. You should not need to edit it.

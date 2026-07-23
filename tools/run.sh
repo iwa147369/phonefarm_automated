@@ -17,6 +17,7 @@ set -euo pipefail
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SRC_DIR="$PROJECT_DIR/src"
 PROBE_DIR="$PROJECT_DIR/src/probes"
+LIB_DIR="$PROJECT_DIR/src/lib"
 REMOTE_DIR="${REMOTE_DIR:-/sdcard/脚本}"
 
 APP_PACKAGE="org.autojs.autojs6"
@@ -57,6 +58,26 @@ fi
 
 echo "Sending $SCRIPT_NAME ..."
 "${ADB[@]}" shell mkdir -p "'$REMOTE_DIR'" >/dev/null 2>&1 || true
+
+# main.js is split across src/lib/, so those files have to travel with it. They
+# go first: a phone holding new modules and an old main.js still runs, while the
+# other way round it cannot start at all. The probes are single files on
+# purpose and never need this.
+if [[ -d "$LIB_DIR" ]]; then
+  lib_count=0
+  "${ADB[@]}" shell mkdir -p "'$REMOTE_DIR/lib'" >/dev/null 2>&1 || true
+  for lib in "$LIB_DIR"/*.js; do
+    [[ -f "$lib" ]] || continue
+    if ! "${ADB[@]}" push "$lib" "$REMOTE_DIR/lib/$(basename "$lib")" >/dev/null; then
+      echo "Could not send $(basename "$lib"). Stopping rather than starting a" >&2
+      echo "script with half its parts - it would fail on the phone instead." >&2
+      exit 1
+    fi
+    lib_count=$((lib_count + 1))
+  done
+  [[ $lib_count -gt 0 ]] && echo "  ... and $lib_count file(s) from src/lib/"
+fi
+
 "${ADB[@]}" push "$LOCAL_FILE" "$REMOTE_DIR/$SCRIPT_NAME" >/dev/null
 
 echo "Starting it on the phone ..."
