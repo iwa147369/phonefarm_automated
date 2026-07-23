@@ -93,7 +93,7 @@ for f in "${FILES[@]}"; do
     echo "    give it another name"
     problems=$((problems + 1))
   done < <(grep -nE "^[[:space:]]*(var|function)[[:space:]]+state\b" "$f" \
-             | grep -v "requireModule" || true)
+             | grep -vE 'requireModule\("state"\)|require\("\./state\.js"\)' || true)
 done
 
 if [[ $problems -gt 0 ]]; then
