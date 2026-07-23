@@ -131,7 +131,14 @@ phonefarm_automated/
 │   ├── main.js                    # the browsing script
 │   ├── lib/                       # the parts main.js loads - these go on the phone too
 │   │   ├── settings.js            # the defaults, and why each one is what it is
-│   │   └── labels.js              # what TikTok's buttons are called
+│   │   ├── labels.js              # what TikTok's buttons are called
+│   │   ├── state.js               # what every part shares: counters, why it stopped
+│   │   ├── util.js                # dice, and careful ways of pressing a button
+│   │   ├── feed.js                # opening TikTok, knowing which screen we are on
+│   │   ├── actions.js             # like, save, comments, share, send to a friend
+│   │   ├── messages.js            # the inbox, and the sticker reply
+│   │   ├── seeding.js             # searching for a topic
+│   │   └── schedule.js            # the day's plan, and the status note
 │   └── probes/                    # diagnostic tools, kept off the phones
 │       ├── probe.js               # prints every button on screen
 │       ├── probe_button_state.js  # how a button shows it is already switched on
@@ -173,13 +180,19 @@ changes its app, they are how you find out what changed.
 
 `main.js` was one file for a long time, on the grounds that a single file is pushed and run as a unit and cannot arrive half-finished. That was the right call while nothing was known about loading a second file on these phones. `probe_require.js` settled it: `require()` works on the farm's Android 9 phones, finds files in a subfolder, and throws catchably when one is missing — so a half-finished push is something the code can notice and refuse, rather than something it silently runs on.
 
-What has moved out so far is the two parts that are pure reference: `lib/settings.js` and `lib/labels.js`. Both are text somebody has to read and edit under pressure, which is the worst thing to bury in the middle of 2800 lines. `deploy.sh` and `run.sh` send `lib/` first and will not send `main.js` if any of it fails to arrive.
+`main.js` is now about 660 lines: loading the other parts, the browsing loop, the schedule loop, and starting up. Everything else is in `src/lib/`, in the order one file needs another — `state` and `util` at the bottom, `seeding` at the top. Nothing calls back into `main.js`, which is a rule rather than a coincidence: a module cannot see it.
+
+The pieces were moved, not rewritten. Every step was checked by extracting the moved text and diffing it against what the farm had been running, then loading it on a real phone before the next step.
+
+`deploy.sh` and `run.sh` send `lib/` first and will not send `main.js` if any of it fails to arrive. `tools/check-shared-state.sh` guards the one new way this can break — see section 8.
 
 The probes repeat a few small helpers instead of sharing them, and that has not changed: they are what you reach for when TikTok has changed and nothing works, so each has to run from a single file on its own.
 
 ## 8. Settings
 
 The defaults sit in a `SETTINGS` block in `src/lib/settings.js`. Every phone runs that same file.
+
+**One rule comes with the split.** Values in `src/lib/state.js` that get replaced rather than changed — the reason a session ended, the run of missed buttons, whether somebody pressed the volume key — must always be reached as `state.something`. Taking a local copy of one changes the copy and leaves the real one alone, with nothing to show for it: the phone browses perfectly and then records the wrong thing. This bit us once already, and `./tools/check-shared-state.sh` now catches it in a second.
 
 **What makes one phone different from another is its own settings file.** `config/devices/` holds one per phone, naming the phone by its adb serial and listing only what differs:
 

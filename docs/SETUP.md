@@ -127,6 +127,13 @@ matching `src/lib/` on your laptop:
 /sdcard/脚本/main.js
 /sdcard/脚本/lib/settings.js     the defaults, and why each one is what it is
 /sdcard/脚本/lib/labels.js       what TikTok's buttons are called
+/sdcard/脚本/lib/state.js        what every part shares
+/sdcard/脚本/lib/util.js         dice, and careful ways of pressing a button
+/sdcard/脚本/lib/feed.js         opening TikTok, knowing which screen we are on
+/sdcard/脚本/lib/actions.js      like, save, comments, share, send to a friend
+/sdcard/脚本/lib/messages.js     the inbox, and the sticker reply
+/sdcard/脚本/lib/seeding.js      searching for a topic
+/sdcard/脚本/lib/schedule.js     the day's plan, and the status note
 /sdcard/脚本/device.json         this phone's own settings
 ```
 
@@ -194,14 +201,14 @@ it.
 
 ## `main.js` — the browsing session
 
-Open it and change the `SETTINGS` block at the top. For a first run set
-`session_minutes` to 2, which is enough to see whether it presses the right
-buttons.
+The settings are in `src/lib/settings.js`, not in `main.js` itself. For a first
+run set `session_minutes` to 2, which is enough to see whether it presses the
+right buttons.
 
 At the end it prints a summary. The line to watch is:
 
 ```
-Buttons not found: 12 - run probe.js and update the BUTTON LABELS section
+Buttons not found: 12 - run probe.js and update lib/labels.js
 ```
 
 If that appears, the script was swiping but could not press anything, because

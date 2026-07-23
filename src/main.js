@@ -329,7 +329,7 @@ function runSession(minutes) {
       console.error("Nothing has been findable for " + state.consecutiveMisses +
                     " tries in a row.");
       console.error("TikTok has probably been updated and renamed things.");
-      console.error("Run probe.js and check the BUTTON LABELS section.");
+      console.error("Run probe.js and check lib/labels.js.");
       state.endReason = "buttons_not_found";
       break;
     }
@@ -414,7 +414,7 @@ function printSummary(startedAt) {
   console.log("Ended because  : " + state.endReason);
   if (stats.misses > 0) {
     console.warn("Buttons not found: " + stats.misses +
-                 " - run probe.js and update the BUTTON LABELS section");
+                 " - run probe.js and update lib/labels.js");
   }
   console.log("======================================");
 }
