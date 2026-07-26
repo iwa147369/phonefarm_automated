@@ -251,9 +251,15 @@ var LABELS = {
     ThumbsUp: labels("^ThumbsUp$")
   },
 
-  // Every button on the bar. Used to check the bar is fully drawn before we
-  // press anything on it.
-  quick_send_all: ["Heart", "Lol", "ThumbsUp", "Effects", "Cards"],
+  // Used to check the bar is fully drawn before we press anything on it. Only
+  // the three we might send are listed, and on purpose: the bar's last two
+  // buttons differ by build - "Effects" and "Cards" on com.ss.android.ugc.trill,
+  // "nudge" and "Streak Pet" on com.zhiliaoapp.musically (measured on a Galaxy
+  // A8+ by probe_conversation_header.js). Demanding the build-specific two made
+  // the check fail on the farm and no reply ever went out. All five draw in the
+  // same row at the same moment, so seeing the three stable ones is proof the
+  // bar has arrived - and those three are the only ones ever pressed.
+  quick_send_all: ["Heart", "Lol", "ThumbsUp"],
 
   // The message box. We look for it to confirm we are in a conversation, and to
   // confirm the keyboard is shut - and then we leave it alone.

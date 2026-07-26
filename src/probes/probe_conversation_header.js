@@ -182,6 +182,45 @@ for (i = 0; i < top.length; i++) {
                                : ""));
 }
 
+// ---------------------------------------------------------------- the reply bar
+
+console.log("");
+console.log("=====================================");
+console.log("THE REPLY BAR  (bottom 15% of screen)");
+console.log("=====================================");
+console.log("  reactInConversation needs all of quick_send_all drawn before it");
+console.log("  will press one: " + LABELS.quick_send_all.join(", "));
+console.log("");
+
+var bar = [];
+try { nodes = className(/.*/).find(); } catch (e) { nodes = []; }
+for (i = 0; i < nodes.length; i++) {
+  if (!onScreen(nodes[i])) continue;
+  var by = yPct(nodes[i]);
+  if (by < 82) continue;
+  var braw = labelOf(nodes[i]);
+  if (!braw) continue;
+  bar.push({ y: by, raw: braw });
+}
+bar.sort(function (a, b) { return a.y - b.y; });
+
+if (bar.length === 0) {
+  console.warn("  Nothing at the bottom. The bar may not be drawn, or the");
+  console.warn("  keyboard is covering it.");
+} else {
+  for (i = 0; i < bar.length; i++) {
+    console.log("  " + bar[i].y + "%  " + JSON.stringify(bar[i].raw));
+  }
+  console.log("");
+  for (var q = 0; q < LABELS.quick_send_all.length; q++) {
+    var wantBtn = LABELS.quick_send_all[q];
+    var present = false;
+    for (i = 0; i < bar.length; i++) if (bar[i].raw === wantBtn) present = true;
+    console.log("  quick_send_all[" + q + "] \"" + wantBtn + "\": " +
+                (present ? "present" : "MISSING"));
+  }
+}
+
 // ---------------------------------------------------------------- verdict
 
 console.log("");
