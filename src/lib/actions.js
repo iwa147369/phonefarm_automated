@@ -438,6 +438,7 @@ function doSendToFriend() {
 
     var name = tidyName(it.label);
     if (!name) continue;
+    if (LABELS.share_not_people.test(name)) continue;       // a control, not a person
     if (nameIsOn(settings.never_send_to, name)) continue;   // blocked outright
 
     if (seen[name]) { seen[name].count++; continue; }

@@ -129,10 +129,26 @@ var LABELS = {
   // Never touched. Listed so it can be recognised and avoided.
   share_message_box: labels("t:(?i)^write a message.*", "d:(?i)^write a message.*"),
 
-  // How far down the screen the people sit, as a percentage. Read off the
-  // panel, and only used to ignore everything outside it - the row of app
-  // icons underneath is 8% away, about 220 pixels.
-  share_people_band: [72, 86],
+  // How far down the screen the people sit, as a percentage. The two builds put
+  // the row in different places: com.ss.android.ugc.trill has it low, at 72-86%,
+  // with the row of app icons below; com.zhiliaoapp.musically has it higher, at
+  // about 62-68%, and the app icons take the 72-86% that used to be people
+  // (measured on a Galaxy A8+ by probe_capture_names.js). A band that only
+  // covered 72-86% read the app icons as the people on musically and found
+  // nobody to send to - "Iwa" sat at 64%, just above it. The band now spans both
+  // rows, and share_not_people below drops anything in that span that is not an
+  // account. The real safety is still the exact-name match against send_to.
+  share_people_band: [58, 88],
+
+  // Buttons that live in the people band but are controls or app targets, not
+  // accounts. Dropped so a "send to anyone" run can never pick one, and so the
+  // count of real people is honest. Names on send_to are matched exactly and are
+  // never any of these, so a genuine recipient is never removed by mistake.
+  share_not_people: new RegExp(
+    "^(add person|invite friends|create group|why this post|captions|duet|" +
+    "stitch|save|repost|report|not interested|download|add to story|promote|" +
+    "cast|copy link|story|search|send|more|sms|email|messenger|whatsapp|" +
+    "telegram|twitter|instagram|facebook|line|zalo|messages)\\b", "i"),
 
   // ---- The Comments panel ----
   //

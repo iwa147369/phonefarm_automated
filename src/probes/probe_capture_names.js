@@ -231,7 +231,11 @@ if (!feed.onTheFeed()) {
       if (NOT_A_PERSON.test(pt)) continue;
       if (pseen[praw]) continue;
       pseen[praw] = true;
-      people.push({ raw: praw, y: yy });
+      var cn = "";
+      try { cn = String(nodes[i].className() || ""); } catch (e) { }
+      var wp = 0;
+      try { wp = Math.round(nodes[i].bounds().width() / device.width * 100); } catch (e) { }
+      people.push({ raw: praw, y: yy, cn: cn, wp: wp });
     }
 
     if (people.length === 0) {
@@ -241,7 +245,8 @@ if (!feed.onTheFeed()) {
     } else {
       for (i = 0; i < people.length; i++) {
         console.log("");
-        console.log("  at " + people[i].y + "% down");
+        console.log("  at " + people[i].y + "% down, " + people[i].wp +
+                    "% wide, class " + people[i].cn);
         console.log("  on screen : " + JSON.stringify(people[i].raw));
         console.log("  for config: " + JSON.stringify(forConfig(people[i].raw)));
         console.log("  match key : " + JSON.stringify(tidyName(people[i].raw)));
