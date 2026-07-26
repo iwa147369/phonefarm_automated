@@ -392,7 +392,42 @@ exactly this", not "who is third along". A row that reorders cannot hurt a
 question phrased that way, and a name that is missing finds nothing instead of
 finding a stranger.
 
----
+### The messaging features were measured on the wrong TikTok
+
+Both message features - replying with a sticker, and sending a video to a friend
+- were built and measured on the Xiaomi test phone, which runs
+`com.ss.android.ugc.trill`. The farm runs `com.zhiliaoapp.musically`, and every
+screen these features touch is laid out differently on it. None of this was
+dangerous - each mismatch made the feature quietly do nothing - but each one
+meant a feature that never fired. All three were found by watching a real run on
+a Galaxy A8+ and reading the log, then measured with a read-only probe.
+
+**The conversation header was read before it was drawn.** Opening a conversation
+takes a moment on the slower phone, and `reactInConversation` read the header in
+a single snapshot taken while the screen was still the inbox. It found the name
+nowhere and reported "this is not Iwa" about the conversation with Iwa open in
+front of it. The header now gets three seconds to appear, re-read a few times;
+it still demands an exact name match in the top 12%, so it can accept only the
+right conversation.
+
+**The reply bar has different buttons.** The completeness check wanted all five
+of `Heart, Lol, ThumbsUp, Effects, Cards`. On musically the last two are `nudge`
+and `Streak Pet`, so the bar never looked complete and no reply went out. The
+check now asks only for the three that exist on both builds - and those three
+are the only ones ever pressed.
+
+**The share panel's people are in a different place.** `share_people_band` said
+the accounts sit at 72-86% of the screen. On musically they sit at 62-68%, and
+72-86% is where the row of app icons (SMS, Facebook) now sits. So the code read
+the app icons as the people, matched none of them, and reported "nobody we may
+send to" while the recipient - "Iwa", a real Button at 64% - was right there.
+The band now spans 58-88% to cover both builds, and `share_not_people` drops the
+controls and app targets that widening lets in. The exact-name match against
+`send_to` is still what makes it safe.
+
+Proven end to end afterwards: one Heart to the operator's own account, and one
+video to the same account, each fired exactly once and nothing went anywhere
+else.
 
 ---
 
