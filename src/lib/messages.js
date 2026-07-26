@@ -252,14 +252,28 @@ function nameIsOn(list, tidiedName) {
  */
 function reactInConversation(expectedName) {
   // The right conversation. Anything else and we do nothing.
+  //
+  // Read the header more than once. Opening a conversation on the slower farm
+  // phones takes a moment, and a single snapshot taken while it is still drawing
+  // finds the name nowhere and gives up on a conversation that is in fact the
+  // right one - "this is not Iwa" when it plainly was. This still demands an
+  // exact name match in the top 12%, so it can never accept the wrong one; it
+  // only waits for the screen to arrive. Measured on a Galaxy A8+ with
+  // probe_conversation_header.js: the header reads "Iwa" at 6% down, once drawn.
   var header = null;
-  var items = screenItems();
-  for (var i = 0; i < items.length; i++) {
-    if (items[i].y <= 12 && tidyName(items[i].label) === tidyName(expectedName)) {
-      header = items[i];
-      break;
+  var deadline = Date.now() + 3000;
+  do {
+    var items = screenItems();
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].y <= 12 && tidyName(items[i].label) === tidyName(expectedName)) {
+        header = items[i];
+        break;
+      }
     }
-  }
+    if (header) break;
+    sleep(300);
+  } while (Date.now() < deadline);
+
   if (!header) {
     log("  messages: this is not " + expectedName + " - leaving it alone");
     return false;
@@ -273,12 +287,16 @@ function reactInConversation(expectedName) {
     return false;
   }
 
-  // The whole bar has to be drawn before we press any of it.
+  // The whole bar has to be drawn before we press any of it. Read the screen
+  // again here rather than trusting the snapshot taken while the header was
+  // still appearing - by now the message box is confirmed, so the bar beside it
+  // has had time to draw too.
+  var barItems = screenItems();
   for (var b = 0; b < LABELS.quick_send_all.length; b++) {
     var name = LABELS.quick_send_all[b];
     var found = false;
-    for (var j = 0; j < items.length; j++) {
-      if (items[j].label === name) { found = true; break; }
+    for (var j = 0; j < barItems.length; j++) {
+      if (barItems[j].label === name) { found = true; break; }
     }
     if (!found) {
       log("  messages: the send bar is incomplete (no " + name + ") - skipping");
