@@ -5,7 +5,8 @@
 # Usage:
 #   ./tools/deploy.sh              push to all connected phones
 #   ./tools/deploy.sh a1b2c3d4     push to one phone (id from `adb devices`)
-#   ./tools/deploy.sh --clean      also delete scripts no longer in src/
+#   ./tools/deploy.sh --clean      also delete stale files - old modules, and
+#                                  any probe left on the phone by run.sh
 #   ./tools/deploy.sh --dry-run    show what would happen, change nothing
 #   ./tools/deploy.sh --list       just list the connected phones
 #
@@ -30,7 +31,6 @@ set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SRC_DIR="$PROJECT_DIR/src"
-PROBE_DIR="$PROJECT_DIR/src/probes"
 LIB_DIR="$PROJECT_DIR/src/lib"
 CONFIG_DIR="$PROJECT_DIR/config/devices"
 # The roster of our own accounts, shared identically across every phone. Each
@@ -212,9 +212,15 @@ if [[ $LIST_ONLY -eq 1 ]]; then
   exit 0
 fi
 
-# Look for scripts on the phone that are no longer in src/. A leftover copy is
-# easy to run by mistake, and then you are debugging a version you already
-# fixed. That has happened once, which is why this check exists.
+# Look for scripts on the phone that do not belong on a farm phone. A leftover
+# copy is easy to run by mistake, and then you are debugging a version you
+# already fixed. That has happened once, which is why this check exists.
+#
+# Only main.js belongs at the top level (its modules live in lib/). Anything
+# else is a probe left behind by run.sh - and a probe has no place on a farm
+# phone, since two of them press something that cannot be taken back. So a
+# top-level .js that is not main.js is treated as stale even though it still
+# exists in src/probes/ on the laptop: --clean is how you sweep them off.
 check_for_stale_files() {
   local device="$1"
   local stale=()
@@ -222,7 +228,7 @@ check_for_stale_files() {
 
   while read -r name; do
     [[ -z "$name" ]] && continue
-    [[ -f "$SRC_DIR/$name" || -f "$PROBE_DIR/$name" ]] || stale+=("$name")
+    [[ -f "$SRC_DIR/$name" ]] || stale+=("$name")
   done < <(adb -s "$device" shell "ls '$REMOTE_DIR'" 2>/dev/null \
              | tr -d '\r' | grep '\.js$' || true)
 
@@ -246,7 +252,7 @@ check_for_stale_files() {
     done
   else
     for name in "${stale[@]}"; do
-      echo "    STILL ON PHONE, no longer in src/: $name"
+      echo "    STILL ON PHONE, does not belong on a farm phone: $name"
     done
     echo "    (run with --clean to delete these)"
   fi
