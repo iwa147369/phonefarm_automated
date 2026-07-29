@@ -1,9 +1,14 @@
 {
-  "_what": "A test run, not a farm phone. Every feature is turned up so that it actually happens during a short run instead of once in fifty videos. Never leave this on a phone that is meant to be browsing normally - an account that likes half of what it sees and shares a third of it does not look like a person.",
+  "_what": "A test run, not a farm phone. Every feature is turned up so that it happens during a short run instead of once in fifty videos - including the two that reach a real person, replying with a sticker and sending a video. Never leave this on a phone that is meant to browse normally.",
   "_how": "./tools/test-run.sh <phone id>   - it puts the phone's own settings back afterwards.",
+
+  "_recipient": "reply_to and send_to below both name 'Iwa', which on this setup is the operator's own second account. CHANGE IT to one of your own accounts before running, copying the exact name from probe_capture_names.js. Never point these at anyone but yourself.",
+
   "device_id": "test-all-features",
+
   "_length": "Six minutes is chosen from what the actions cost: sharing opens a panel and takes about ten seconds, reading comments a few more. Shorter than this and the slow features simply do not get a turn.",
   "session_minutes": 6,
+
   "_rates": "Test values. A farm phone runs at 0.20 / 0.05 / 0.05 / 0.01.",
   "rates": {
     "like": 0.6,
@@ -11,96 +16,76 @@
     "read_comments": 0.5,
     "share": 0.35
   },
+
   "_watch": "Short watches, so more videos go past in six minutes and more actions get a turn.",
   "watch": {
-    "short_seconds": [
-      3,
-      6
-    ],
-    "long_seconds": [
-      7,
-      12
-    ],
+    "short_seconds": [3, 6],
+    "long_seconds": [7, 12],
     "chance_of_long_watch": 0.2,
     "chance_of_instant_skip": 0.1,
-    "instant_skip_seconds": [
-      1,
-      2
-    ]
+    "instant_skip_seconds": [1, 2]
   },
+
   "comments": {
-    "scrolls": [
-      1,
-      2
-    ],
-    "read_seconds": [
-      1.5,
-      3
-    ]
+    "scrolls": [1, 2],
+    "read_seconds": [1.5, 3]
   },
+
   "_seed": "once_per_day is off so the search happens on this run whatever else the phone did today. The keywords are farm-04's real ones.",
   "seed": {
     "enabled": true,
-    "keywords": [
-      "indo taiwan",
-      "taiwan food"
-    ],
-    "videos_to_watch": [
-      2,
-      3
-    ],
+    "keywords": ["indo taiwan", "taiwan food"],
+    "videos_to_watch": [2, 3],
     "once_per_day": false
   },
-  "_messages": "Off. Turning this on sends a sticker to a real person, and it cannot be taken back. reply_to must list your own accounts, copied out of the log rather than typed - the inbox puts an invisible character in front of each name. See config/devices/xiaomi-test.json for a worked example.",
+
+  "_messages": "On. chance_of_checking 1 so it always opens the inbox; chance_of_replying 1 so it always replies to an eligible unread. Only the name in reply_to is eligible. One reply at most, a Heart, for a predictable result. A reply only fires if that account has sent this phone a message that is still unread - so send yourself one first, or nothing happens (safely).",
   "messages": {
-    "enabled": false,
-    "reply_to": [],
+    "enabled": true,
     "chance_of_checking": 1.0,
+    "reply_to": ["Iwa"],
+    "max_replies": [1, 1],
     "chance_of_replying": 1.0,
-    "max_replies": [
-      1,
-      1
-    ]
+    "reactions": ["Heart"]
   },
-  "_send_to_friend": "Off, for the same reason: this sends the video to somebody as a private message. send_to must name your own account.",
+
+  "_send_to_friend": "On, pointed only at the name in send_to. rate 0.5 so it tries often; max 1 so at most one video goes. allow_anyone false and never_send_to empty - a video can reach no one but that account, and only if TikTok shows it in the share panel's people row (which usually needs a prior message exchange). If it is not shown, nothing is sent.",
   "send_to_friend": {
-    "enabled": false,
-    "send_to": [],
-    "rate": 1.0,
-    "max_per_session": 1
+    "enabled": true,
+    "rate": 0.5,
+    "send_to": ["Iwa"],
+    "max_per_session": 1,
+    "allow_anyone": false,
+    "chance_of_anyone": 0,
+    "never_send_to": []
   },
+
   "_schedule": "Two sessions, a minute apart, at any hour. Two is the point: the counters have to go back to zero between them, and that is the part of the split that a single session never tests.",
   "schedule": {
     "enabled": true,
-    "active_hours": [
-      [
-        0,
-        24
-      ]
-    ],
-    "sessions_per_day": [
-      2,
-      2
-    ],
-    "gap_minutes": [
-      1,
-      1
-    ],
+    "active_hours": [[0, 24]],
+    "sessions_per_day": [2, 2],
+    "gap_minutes": [1, 1],
     "chance_of_lazy_day": 0,
     "state_file": "/sdcard/脚本/farm_state.json"
   },
-  "_ramp_up": "No account_started is set, so accountAgeDays() returns null and the rates above are the rates that run. Set it on a real phone and a young account browses more gently.",
+
+  "_ramp_up": "No account_started is set, so accountAgeDays() returns null and the rates above are the rates that run.",
   "ramp_up": {
     "account_started": ""
   },
+
   "minimum_battery_percent": 20,
+
   "watchdog": {
     "stop_after_missed_buttons": 8,
     "status_file": "/sdcard/脚本/farm_status.json",
     "keep_recent_sessions": 20
   },
+
   "single_instance": true,
   "verbose": true,
+
   "_console": "Left on, because that is how the farm now runs. It costs the swipe back to the previous video, which the script switches off by itself - so that one feature cannot be tested in this configuration, by design.",
   "show_console_window": true
 }
