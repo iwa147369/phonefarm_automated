@@ -184,7 +184,7 @@ def invent_persona():
                 [random.randint(2, 4), random.randint(4, 6)]
             ),
             "gap_minutes": sorted(
-                [random.randint(30, 70), random.randint(90, 220)]
+                [random.randint(30, 60), random.randint(90, 180)]
             ),
             "chance_of_lazy_day": round(random.uniform(0.08, 0.25), 2),
         },
@@ -234,6 +234,15 @@ for serial in serials:
     }
     config["ramp_up"] = {"account_started": account_started}
 
+    # Messaging on by default. With the shared roster and allow_anyone off, a
+    # phone only ever replies to, and sends videos to, our own accounts -
+    # everyone on config/accounts.json except the one it is running as. Leaving
+    # reply_to and send_to empty is what makes it use that roster rather than a
+    # per-phone list. It stays harmless until the roster has other accounts in
+    # it: with only itself listed there is nobody to message.
+    config["messages"] = {"enabled": True}
+    config["send_to_friend"] = {"enabled": True}
+
     with open(path, "w") as fh:
         json.dump(config, fh, indent=2, ensure_ascii=False)
         fh.write("\n")
@@ -270,6 +279,12 @@ if not account_started:
     print("No account start date, so full rates apply from the first session.")
     print("For new accounts, add:  --account-started today")
     print()
+
+print("Messaging is on: these phones will reply to and send videos to the")
+print("other accounts on config/accounts.json. Make sure that file lists your")
+print("own accounts - copy each name with probe_self_name.js - or there is")
+print("nobody for them to message. deploy.sh pushes it alongside the settings.")
+print()
 
 print("Now push them:  ./tools/deploy.sh")
 PY
