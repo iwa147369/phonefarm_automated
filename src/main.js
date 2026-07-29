@@ -162,6 +162,11 @@ var seeding = requireModule("seeding");
 var shouldSeedNow = seeding.shouldSeedNow;
 var doSeedTopic = seeding.doSeedTopic;
 
+// Which of our accounts this phone is, from lib/identity.js. Read once, so the
+// messaging features can act on everyone on the shared roster except ourselves.
+var identity = requireModule("identity");
+var establishIdentity = identity.establishIdentity;
+
 // ============================================================================
 // BUTTON LABELS - moved to lib/labels.js
 // ============================================================================
@@ -438,6 +443,16 @@ function runOneSession() {
   if (!openTikTok()) {
     console.error("Could not open TikTok. Is the screen unlocked?");
     return false;
+  }
+
+  // Work out which of our accounts this phone is, but only if a feature needs
+  // it. Both messaging features act on "the roster, minus ourselves", so they
+  // cannot run without knowing our own name; nothing else does, so a browsing
+  // phone should not pay the trip to the profile and back. Done once - after
+  // the first session this returns straight away.
+  if (SETTINGS.messages.enabled || SETTINGS.send_to_friend.enabled) {
+    establishIdentity();
+    if (state.selfName) schedule.saveState({ account: state.selfName });
   }
 
   var startedAt = Date.now();

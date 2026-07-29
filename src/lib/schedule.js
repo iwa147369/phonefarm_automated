@@ -72,6 +72,7 @@ function writeStatus(startedAt) {
     files.write(SETTINGS.watchdog.status_file, JSON.stringify({
       device_id: summary.device_id,
       tiktok_package: state.tiktokPackage,
+      account: state.selfName || null,
       last_session: summary,
       recent: recent
     }, null, 2));

@@ -33,6 +33,10 @@ SRC_DIR="$PROJECT_DIR/src"
 PROBE_DIR="$PROJECT_DIR/src/probes"
 LIB_DIR="$PROJECT_DIR/src/lib"
 CONFIG_DIR="$PROJECT_DIR/config/devices"
+# The roster of our own accounts, shared identically across every phone. Each
+# phone reads its own name off its Profile screen and messages everyone here
+# except itself. Copied to the phone as accounts.json.
+ROSTER_FILE="$PROJECT_DIR/config/accounts.json"
 # AutoJs6 reads scripts from /sdcard/脚本 - that word is Chinese for "scripts",
 # and the folder keeps that name even when the phone is set to English.
 # Override with REMOTE_DIR if your phone differs.
@@ -79,6 +83,14 @@ check_configs_parse() {
       broken=1
     fi
   done
+  # The shared roster too - a broken accounts.json would strand the messaging
+  # features on every phone at once, so catch it before sending anything.
+  if [[ -f "$ROSTER_FILE" ]]; then
+    if ! python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$ROSTER_FILE" 2>/dev/null; then
+      echo "  NOT VALID JSON: $ROSTER_FILE" >&2
+      broken=1
+    fi
+  fi
   return $broken
 }
 
@@ -268,6 +280,7 @@ for device in "${DEVICES[@]}"; do
     else
       echo "    NO SETTINGS FILE - would run the built-in defaults"
     fi
+    [[ -f "$ROSTER_FILE" ]] && echo "    would copy accounts.json (the shared roster)"
     echo
     continue
   fi
@@ -329,6 +342,18 @@ for device in "${DEVICES[@]}"; do
       echo "      behaving exactly like every other phone in the same state."
       echo "      Add one to config/devices/ with:"
       echo "        \"adb_serial\": \"$device\""
+    fi
+  fi
+
+  # The shared roster of our own accounts - the same file on every phone. Only
+  # the messaging features read it; a phone that never messages is unaffected by
+  # it being absent, so a failure here is a warning, not a reason to stop.
+  if [[ $device_ok -eq 1 && -f "$ROSTER_FILE" ]]; then
+    if adb -s "$device" push "$ROSTER_FILE" "$REMOTE_DIR/accounts.json" \
+         >/dev/null 2>&1; then
+      echo "    roster  : accounts.json"
+    else
+      echo "    WARNING: could not copy accounts.json (messaging would have no roster)"
     fi
   fi
 

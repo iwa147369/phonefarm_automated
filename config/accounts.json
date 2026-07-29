@@ -1,0 +1,13 @@
+{
+  "_what": "Every one of our own accounts, by display name - the SAME list on every phone. deploy.sh copies this to each phone as accounts.json. At startup a phone reads its own name off its Profile screen and messages everyone here EXCEPT itself, so there is nothing to edit per phone.",
+
+  "_how": "Put the exact display name of each account, as it appears on its own profile and in the share panel - copy it with probe_self_name.js run on that phone, do not type it by hand (the names carry invisible characters). A name spelled even slightly differently simply never matches, which fails safe: no message goes out.",
+
+  "_scope": "Only your own accounts belong here. Anyone on this list can be sent a video and replied to automatically; a stranger must never appear. This is the whole safety argument for turning allow_anyone off - a name not on this list is a message that does not happen.",
+
+  "_confirmed": "adiiaduu.tw is confirmed - read off farm-04 (Galaxy A8+) by probe_self_name.js on 2026-07-29. Confirm every other entry the same way before trusting it.",
+
+  "accounts": [
+    "adiiaduu.tw"
+  ]
+}

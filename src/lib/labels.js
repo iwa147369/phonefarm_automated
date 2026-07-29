@@ -228,6 +228,25 @@ var LABELS = {
 
   home_tab: labels("(?i)^home$"),
 
+  // ---- Our own profile ----
+  //
+  // The Profile tab in the bottom nav, and the things at the top of the profile
+  // that are NOT our display name.
+  //
+  // A phone reads its own display name off this screen so it knows which of our
+  // accounts it is, and can message everyone on the shared roster except itself.
+  // Measured on a Galaxy A8+ running com.zhiliaoapp.musically (2026-07-29) with
+  // probe_self_name.js: the tab is labelled "Profile"; the display name is the
+  // item sitting directly above the "@handle" and centred under it.
+  //
+  // The name is found relative to the @handle rather than by a fixed position,
+  // because position moves between builds. profile_not_name lists what shares
+  // that region and must not be mistaken for the name - "Edit" in particular
+  // sits at the very same height as it.
+  profile_tab: labels("(?i)^profile$", "(?i)^me$"),
+
+  profile_not_name: /^(profile photo|create a story|edit|add bio|add friends?|add person|share|profile menu|following|followers|friends|likes|tiktok studio|creator tools|for you|community|discover|home|inbox|create|search|[0-9][0-9.,]* profile views?)$/i,
+
   // Rows that look like conversations and are not. Opening any of these takes
   // us to a different screen entirely.
   not_a_conversation: /^(new followers|activity|system notifications|account not found)$/i,

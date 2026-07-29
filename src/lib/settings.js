@@ -230,6 +230,19 @@ var SETTINGS = {
     ]
   },
 
+  // ---- Who all our accounts are ----
+  //
+  // The messaging features reach a real inbox, so they only ever act on our own
+  // accounts. Rather than keep a list on each phone by hand - which does not
+  // scale, as accounts outnumber phones and move between them - every phone
+  // carries the SAME list of all our accounts here, and works out at startup
+  // which one it is itself by reading its own Profile screen. What it may
+  // message is then "this list, minus me", with nothing to edit per phone.
+  //
+  // deploy.sh copies config/accounts.json to this path on every phone. An empty
+  // or missing file simply leaves the messaging features with nobody to act on.
+  roster_file: "/sdcard/脚本/accounts.json",
+
   // Stop the session if the battery drops below this percentage.
   minimum_battery_percent: 20,
 

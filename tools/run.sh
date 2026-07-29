@@ -78,6 +78,14 @@ if [[ -d "$LIB_DIR" ]]; then
   [[ $lib_count -gt 0 ]] && echo "  ... and $lib_count file(s) from src/lib/"
 fi
 
+# The shared roster of our own accounts, so identity.js and the messaging
+# features have it when run this way too. Only present once it has been created.
+ROSTER_FILE="$PROJECT_DIR/config/accounts.json"
+if [[ -f "$ROSTER_FILE" ]]; then
+  "${ADB[@]}" push "$ROSTER_FILE" "$REMOTE_DIR/accounts.json" >/dev/null 2>&1 \
+    && echo "  ... and accounts.json (the shared roster)"
+fi
+
 "${ADB[@]}" push "$LOCAL_FILE" "$REMOTE_DIR/$SCRIPT_NAME" >/dev/null
 
 echo "Starting it on the phone ..."

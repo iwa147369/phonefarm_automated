@@ -393,7 +393,11 @@ function doShare() {
  */
 function doSendToFriend() {
   var settings = SETTINGS.send_to_friend;
-  var allowed = settings.send_to || [];
+  // Who may receive a video: the explicit list if one is set, otherwise the
+  // shared roster with our own name removed. state.friends is read live - it is
+  // reassigned once by identity.js, so a local copy would go stale.
+  var explicit = settings.send_to || [];
+  var allowed = explicit.length ? explicit : (state.friends || []);
   if (allowed.length === 0) return false;
 
   var shareButton = findOnScreen(LABELS.share, 1200);
@@ -439,6 +443,7 @@ function doSendToFriend() {
     var name = tidyName(it.label);
     if (!name) continue;
     if (LABELS.share_not_people.test(name)) continue;       // a control, not a person
+    if (state.selfName && name === tidyName(state.selfName)) continue;  // never ourselves
     if (nameIsOn(settings.never_send_to, name)) continue;   // blocked outright
 
     if (seen[name]) { seen[name].count++; continue; }

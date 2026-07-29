@@ -82,6 +82,23 @@ function buildState() {
     /** Which TikTok this phone has. Worked out once at startup. */
     tiktokPackage: null,
 
+    /**
+     * Which of our accounts this phone is running as, read off the Profile
+     * screen once at startup. Null until identity.js has looked, or if the name
+     * could not be read.
+     */
+    selfName: null,
+
+    /** Every farm account, shared identically across all phones. */
+    roster: null,
+
+    /**
+     * The accounts this phone may message: the roster with our own name taken
+     * out. Reassigned by identity.js, so it must always be read as state.friends
+     * - never copied into a local, or the copy goes stale. See the note above.
+     */
+    friends: null,
+
     /** The rates in force right now, which change as an account ages. */
     activeRates: null,
 

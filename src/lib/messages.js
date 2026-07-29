@@ -227,7 +227,16 @@ function mayReplyTo(row) {
   var wanted = tidyName(row.name);
   if (!wanted) return false;
 
-  var allowed = SETTINGS.messages.reply_to || [];
+  // Never reply to ourselves. TikTok does not normally show a conversation with
+  // our own account, but the guard costs nothing.
+  if (state.selfName && tidyName(state.selfName) === wanted) return false;
+
+  // Who we may reply to: the explicit list if one is set, otherwise the shared
+  // roster with our own name already taken out. state.friends is read live - it
+  // is filled in once identity.js has looked, and reassigned, so a local copy
+  // would go stale.
+  var explicit = SETTINGS.messages.reply_to || [];
+  var allowed = explicit.length ? explicit : (state.friends || []);
   for (var i = 0; i < allowed.length; i++) {
     if (tidyName(allowed[i]) === wanted) return true;
   }
@@ -377,7 +386,12 @@ function reactInConversation(expectedName) {
 function doCheckMessages() {
   var settings = SETTINGS.messages;
   if (!settings.enabled) return;
-  if (!settings.reply_to || settings.reply_to.length === 0) return;
+
+  // Who we may reply to: the explicit list if one is set, otherwise the shared
+  // roster with our own name removed. Nothing to do if both are empty.
+  var effective = (settings.reply_to && settings.reply_to.length)
+                    ? settings.reply_to : (state.friends || []);
+  if (effective.length === 0) return;
   if (!chance(settings.chance_of_checking)) return;
 
   // Wait for the feed rather than giving up the moment it is not there yet.
@@ -431,11 +445,14 @@ function doCheckMessages() {
     }
     if (unread.length > 0) {
       var listed = [];
-      for (var a = 0; a < (settings.reply_to || []).length; a++) {
-        listed.push('"' + tidyName(settings.reply_to[a]) + '"');
+      for (var a = 0; a < effective.length; a++) {
+        listed.push('"' + tidyName(effective[a]) + '"');
       }
-      log("  messages: reply_to holds " + listed.length + ": " + listed.join(", "));
-      log("  messages: unread, but not on the reply_to list:");
+      var source = (settings.reply_to && settings.reply_to.length)
+                     ? "reply_to" : "the roster (minus us)";
+      log("  messages: may reply to " + listed.length + " from " + source +
+          ": " + listed.join(", "));
+      log("  messages: unread, but not on that list:");
       for (var v = 0; v < unread.length; v++) log("      " + unread[v]);
       log("    (name first, then what the message says - if those two look");
       log("     swapped, the rows are being read wrongly)");
