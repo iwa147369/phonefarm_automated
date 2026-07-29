@@ -4,7 +4,7 @@ A script that makes Android phones browse TikTok on their own, the way a real pe
 
 We run it on a group of physical phones (a "phone farm"). Each phone has one TikTok account. The script watches videos, likes some of them, saves a few, reads the comments now and then, and shares the occasional one.
 
-> **Status:** Phase 1 complete on one test phone. Browsing, liking, saving and sharing all proven on a real device. Nothing has been tested on the farm phones yet.
+> **Status:** Running on the farm. All browsing features and both message features are proven on the real Galaxy A8+/A9 phones; the code is split into modules and covered by a test run. Open items are in section 14.
 
 ---
 
@@ -70,16 +70,7 @@ Share       "Share video. 116 shares"
 Follow      "Follow <creator name>"
 ```
 
-Then there are the traps. There are more than a dozen now, and every one cost
-real debugging time — buttons that share an id, a "liked" video whose label says
-`Like`, a panel that ignores the back action, a list that relabels itself while
-you read it, and two occasions where the script did something nobody asked for.
-
-They live in **[docs/WHAT-BROKE.md](docs/WHAT-BROKE.md)**, with what went wrong
-and what each rule in the code is protecting against.
-
-**Read that file before changing anything in `src/main.js`.** Most of the
-odd-looking parts are load-bearing.
+Then there are the traps — more than a dozen, each one paid for in debugging: buttons that share an id, a "liked" video whose label says `Like`, a panel that ignores the back action, a list that relabels itself as you read it, and two occasions where the script did something nobody asked for. They live in **[docs/WHAT-BROKE.md](docs/WHAT-BROKE.md)**, with what each rule in the code is protecting against. **Read that file before changing anything in `src/`** — most of the odd-looking parts are load-bearing.
 
 ## 5. What the script does and does not do
 
@@ -90,15 +81,15 @@ odd-looking parts are load-bearing.
 - **Save videos** — add to Favorites, with the safeguard described in section 6
 - **Read the comments** — open the panel, scroll through a few, and close it, the way someone curious what others thought would
 - **Share** — copy the video's link, which stays inside TikTok and still counts as a share
-- **Check its messages** — at the start of a session, open the inbox and reply to unread messages from a named list of accounts, with a sticker from the quick-reply bar
-- **Send a video to a friend** — share a video into another account's inbox, which is what gives the reply above something to answer
+- **Check its messages** — at the start of a session, open the inbox and reply to unread messages from your own accounts, with a sticker from the quick-reply bar. It works out which accounts those are from a shared roster it reads at startup, minus the one it is running as (see "The roster" in section 8)
+- **Send a video to a friend** — share a video into one of those same accounts' inboxes, which is what gives the reply above something to answer
 
 ### It does not
 
 - **Write anything.** No comments, no replies, no typed messages anywhere. A reply is a sticker and nothing else, and the message box is never touched — in the comments panel, in a conversation, or in the share panel.
 - **Like anyone's comment.** That is a public action under our account's name.
 - **Log in, type passwords, or switch accounts.** The account must already be signed in.
-- **Message anyone who is not on a list you wrote.** Replies go only to `reply_to`; videos go only to `send_to`. A name that cannot be found is a message that does not get sent.
+- **Message anyone who is not one of your own accounts.** Replies and videos go only to the accounts on your roster — never to the account the phone is running as, and never to a stranger. A name that cannot be found is a message that does not get sent.
 - **Touch live streams or TikTok Shop.**
 - **Get around security checks.** If a captcha or verification screen appears, the script stops and reports it.
 
@@ -124,6 +115,7 @@ phonefarm_automated/
 ├── config/
 │   ├── devices/                   # one file per phone in the farm
 │   │   └── xiaomi-test.json
+│   ├── accounts.json              # the roster of our own accounts, shared by every phone
 │   ├── test-all-features.json     # every rate turned up, for a test run only
 │   └── examples/                  # personas to copy and adapt
 │       ├── persona-early-riser.json
@@ -139,6 +131,7 @@ phonefarm_automated/
 │   │   ├── actions.js             # like, save, comments, share, send to a friend
 │   │   ├── messages.js            # the inbox, and the sticker reply
 │   │   ├── seeding.js             # searching for a topic
+│   │   ├── identity.js            # which of our accounts this phone is running as
 │   │   └── schedule.js            # the day's plan, and the status note
 │   └── probes/                    # diagnostic tools, kept off the phones
 │       ├── probe.js               # prints every button on screen
@@ -156,7 +149,8 @@ phonefarm_automated/
 │       ├── probe_engines.js       # what one running script can see of the others
 │       ├── probe_require.js       # can a script on the phone load a second file
 │       ├── probe_console_window.js# where the console panel sits, and can it move
-│       └── probe_search_result.js # which part of a search result opens the video
+│       ├── probe_search_result.js # which part of a search result opens the video
+│       └── probe_self_name.js     # reads this account's own display name, read-only
 ├── tools/
 │   ├── deploy.sh                  # send main.js and each phone's settings
 │   ├── run.sh                     # send one script and start it, from your laptop
@@ -182,245 +176,181 @@ They are worth keeping, though. Each one answers a question that is dangerous to
 guess at, and every answer in section 4 came from one of them. When TikTok
 changes its app, they are how you find out what changed.
 
-`main.js` was one file for a long time, on the grounds that a single file is pushed and run as a unit and cannot arrive half-finished. That was the right call while nothing was known about loading a second file on these phones. `probe_require.js` settled it: `require()` works on the farm's Android 9 phones, finds files in a subfolder, and throws catchably when one is missing — so a half-finished push is something the code can notice and refuse, rather than something it silently runs on. What it did *not* settle, and what caught us out afterwards, is that a `require()` inside a module has its own cache: each module gets a fresh copy of what it asks for. Shared values live on `global`, in `src/lib/state.js`, and that file explains why.
+`main.js` is about 660 lines — loading the parts, the browsing loop, the schedule loop, startup. Everything else is in `src/lib/`, ordered so each file needs only the ones below it, and nothing calls back into `main.js`. The split was proven with `probe_require.js`: `require()` works on the Android 9 phones and throws catchably when a file is missing, so a half-finished push is refused rather than run. One catch it did not reveal — a `require()` inside a module gets its own cache, its own fresh copy — is why shared values live on `global`, in `src/lib/state.js`.
 
-`main.js` is now about 660 lines: loading the other parts, the browsing loop, the schedule loop, and starting up. Everything else is in `src/lib/`, in the order one file needs another — `state` and `util` at the bottom, `seeding` at the top. Nothing calls back into `main.js`, which is a rule rather than a coincidence: a module cannot see it.
+`deploy.sh` and `run.sh` send `lib/` first and will not send `main.js` if any of it fails to arrive. `tools/check-shared-state.sh` guards the one rule the split adds: a value in `state.js` that gets replaced must always be reached as `state.something`, never copied into a local — a copy drifts silently and the phone records the wrong thing.
 
-The pieces were moved, not rewritten. Every step was checked by extracting the moved text and diffing it against what the farm had been running, then loading it on a real phone before the next step.
-
-`deploy.sh` and `run.sh` send `lib/` first and will not send `main.js` if any of it fails to arrive. `tools/check-shared-state.sh` guards the one new way this can break — see section 8.
-
-The probes repeat a few small helpers instead of sharing them, and that has not changed: they are what you reach for when TikTok has changed and nothing works, so each has to run from a single file on its own.
+The probes each repeat a few small helpers rather than share them: they are what you reach for when TikTok has changed and nothing works, so each must run from a single file on its own.
 
 ## 8. Settings
 
 The defaults sit in a `SETTINGS` block in `src/lib/settings.js`. Every phone runs that same file.
 
-**One rule comes with the split.** Values in `src/lib/state.js` that get replaced rather than changed — the reason a session ended, the run of missed buttons, whether somebody pressed the volume key — must always be reached as `state.something`. Taking a local copy of one changes the copy and leaves the real one alone, with nothing to show for it: the phone browses perfectly and then records the wrong thing. This bit us once already, and `./tools/check-shared-state.sh` now catches it in a second.
+### Every setting, in one place
 
-**What makes one phone different from another is its own settings file.** `config/devices/` holds one per phone, naming the phone by its adb serial and listing only what differs:
+**How to change one.** Each phone reads its own file in `config/devices/`, listing only what should differ from the defaults; run `./tools/deploy.sh` to send changes to the phones. The full mechanics — the file format, `add-device.sh`, and what happens when settings are missing — are below the tables.
+
+A range written as two numbers, like `[8, 22]`, means "pick a fresh value between these each time". A single number fixes it.
+
+**Which phone this is**
+
+| Setting | Example | What it does |
+|---|---|---|
+| `device_id` | `"farm-01"` | The name shown in the logs and status reports. Just a label. |
+| `adb_serial` | `"VC7PSS8..."` | Which phone this file belongs to. Find it with `adb devices`. |
+
+**How much it does**
+
+| Setting | Example | What it does |
+|---|---|---|
+| `session_minutes` | `[8, 22]` | How long one session lasts, in minutes. |
+| `rates.like` | `0.20` | Likes about 20 of every 100 videos it watches. |
+| `rates.save` | `0.05` | Saves about 5 of every 100 to Favourites. |
+| `rates.read_comments` | `0.05` | Opens the comments on about 5 of every 100. Reads only, never writes. |
+| `rates.share` | `0.01` | Copies the video's link about 1 in 100. Stays inside TikTok. |
+| `chance_of_swipe_back` | `0.04` | Now and then glances back at the previous video. Switched off by itself while the on-screen console is showing. |
+
+**How long it watches each video**
+
+| Setting | Example | What it does |
+|---|---|---|
+| `watch.short_seconds` | `[3, 9]` | A quick look, which most videos get. |
+| `watch.long_seconds` | `[10, 28]` | A proper watch, which a few get. |
+| `watch.chance_of_long_watch` | `0.30` | How often a video gets the proper watch. |
+| `watch.chance_of_instant_skip` | `0.10` | How often it skips almost at once, the way people do. |
+| `watch.instant_skip_seconds` | `[1, 2]` | How long those instant skips last. |
+| `comments.scrolls` | `[0, 2]` | How many times it scrolls the comments. Zero is allowed on purpose. |
+| `comments.read_seconds` | `[1.5, 3]` | How long it lingers while reading them. |
+
+**Searching for a topic**
+
+| Setting | Example | What it does |
+|---|---|---|
+| `seed.enabled` | `true` | Whether to search for a topic at all. |
+| `seed.keywords` | `["coffee shop"]` | The words to search. Nothing happens while this is empty. |
+| `seed.videos_to_watch` | `[3, 6]` | How many results to watch before going back to the feed. |
+| `seed.once_per_day` | `true` | Search at most once a day. |
+
+**When sessions happen**
+
+| Setting | Example | What it does |
+|---|---|---|
+| `schedule.enabled` | `false` | Off = one session, then stop (use this for testing). On = keeps running all day. |
+| `schedule.active_hours` | `[[9,13],[18,21]]` | The hours it is allowed to browse. 24-hour clock. |
+| `schedule.sessions_per_day` | `[3, 5]` | How many sessions in a day. |
+| `schedule.gap_minutes` | `[45, 180]` | The rest between one session and the next. |
+| `schedule.chance_of_lazy_day` | `0.15` | How often a day does far fewer sessions than usual. |
+| `schedule.state_file` | `".../farm_state.json"` | Where it remembers today's count. Leave as is. |
+
+**Going easy on a new account**
+
+| Setting | Example | What it does |
+|---|---|---|
+| `ramp_up.account_started` | `"2026-07-22"` | The date the account was made. Leave empty for full rates from day one. |
+| `ramp_up.stages` | (a list) | How gently to start and how fast to grow. The defaults are sensible; rarely changed. |
+
+**Messages — these two reach a real person**
+
+> ⚠️ **A sticker or a video goes to an actual account the moment it fires, and it cannot be undone.** These features act on your **roster** — `config/accounts.json`, your own accounts and no one else. Each phone reads its own name off its profile and messages everyone on the roster *except itself*, so there is nothing to set per phone. Copy every name into the roster with `probe_self_name.js` rather than typing it — a name carries invisible characters, and a typed one never matches (which fails safe: nothing sends). Leave `allow_anyone` off. Full reasoning under "The roster" below.
+
+| Setting | Example | What it does |
+|---|---|---|
+| `messages.enabled` | `true` | Whether to reply to messages at all. On by default for phones made with `add-device.sh`. |
+| `messages.chance_of_checking` | `0.3` | How often a session begins by opening the inbox. |
+| `messages.reply_to` | `[]` | **Leave empty to use the roster** (everyone on it but this phone). Name accounts here only to restrict to a subset — your own, always. |
+| `messages.max_replies` | `[1, 2]` | Most replies in one session. |
+| `messages.chance_of_replying` | `0.6` | Sometimes it reads a message and leaves without replying. |
+| `messages.reactions` | `["Heart"]` | Which stickers it may send. |
+| `send_to_friend.enabled` | `true` | Whether to send a video to a friend. On by default for phones made with `add-device.sh`. |
+| `send_to_friend.rate` | `0.01` | Share of videos it sends on. Keep this low. |
+| `send_to_friend.send_to` | `[]` | Same as `reply_to`: empty uses the roster; a list restricts to a subset of your own accounts. |
+| `send_to_friend.max_per_session` | `2` | Most videos sent in one session. |
+| `send_to_friend.allow_anyone` | `false` | Leave off. Lets a video go to somebody not on the roster — see the warning above. |
+| `send_to_friend.chance_of_anyone` | `0.2` | Only used when `allow_anyone` is on. |
+| `send_to_friend.never_send_to` | `[]` | Accounts never to contact, whatever else is set. |
+| `roster_file` | `".../accounts.json"` | Where the shared roster of your own accounts is read from. Leave as is. |
+
+**Safety and housekeeping**
+
+| Setting | Example | What it does |
+|---|---|---|
+| `minimum_battery_percent` | `20` | Stops browsing and waits when the battery is lower than this. |
+| `watchdog.stop_after_missed_buttons` | `8` | Ends the session after this many button lookups fail in a row — a sign TikTok changed. |
+| `watchdog.status_file` | `".../farm_status.json"` | Where the after-session note is written. Leave as is. |
+| `watchdog.keep_recent_sessions` | `20` | How many past sessions that note keeps. |
+| `single_instance` | `true` | Refuses to start if a copy is already running on the phone. Leave on. |
+| `verbose` | `true` | Prints every action to the console. |
+| `show_console_window` | `true` | Shows the console panel on the phone, so you can read it by picking the phone up. |
+
+**Each phone's own file.** `config/devices/` holds one per phone, named by its adb serial, listing only what differs from the defaults:
 
 ```jsonc
 {
   "device_id": "farm-01",
   "adb_serial": "VC7PSS8LNJINY9HY",
-
   "rates": { "like": 0.14 },
-  "schedule": {
-    "enabled": true,
-    "active_hours": [[6, 8], [12, 13], [18, 21]]
-  },
+  "schedule": { "enabled": true, "active_hours": [[6, 8], [12, 13], [18, 21]] },
   "seed": { "keywords": ["cà phê", "coffee shop"] },
   "ramp_up": { "account_started": "2026-07-01" }
 }
 ```
 
-`deploy.sh` copies the matching file to each phone as `device.json`. Nested settings merge, so changing `rates.like` leaves `rates.save` alone; lists replace whole, because blending one phone's waking hours with the defaults would produce nonsense.
+`deploy.sh` copies the matching file to each phone as `device.json`. Nested settings merge (changing `rates.like` leaves `rates.save` alone); lists replace whole.
 
-**This is where carelessness costs the most.** Every session already varies its own timing, but if twelve phones wake at seven, like a fifth of what they see, and search the same words, that is a pattern no per-session randomness hides. Copying one file twelve times defeats the entire purpose.
+**Do not hand-copy one file across phones.** Twelve phones that wake at seven and like a fifth of what they see is a pattern no per-session randomness hides. `./tools/add-device.sh` invents a different rhythm for each phone that has none — different hours, rates and session lengths — and never overwrites or pushes. Run `deploy.sh` afterwards.
 
-So do not write them by hand:
-
-```bash
-./tools/add-device.sh --topic "cà phê,coffee shop" --account-started today
-```
-
-That writes a settings file for every connected phone that has none, inventing a different daily rhythm for each: different waking hours, different appetite for liking things, different session lengths. It prefers a rhythm no other phone has been given yet, then nudges the hours so that even two phones on the same rhythm do not line up.
-
-```
-farm-02  (VC7PSS8LNJINY9HY)
-  checks it over breakfast and again at night
-  awake      7:00-8:00, 12:00-14:00, 20:00-23:00
-  sessions   3-4 a day, 10-15 min each
-  likes      23% of what it sees
-```
-
-It never overwrites an existing file and never pushes anything — run `deploy.sh` afterwards. Everything it writes is ordinary settings you can edit.
-
-Three things go wrong, and each is handled differently:
-
-| What happened | What the script does |
+| If a phone's settings… | The script… |
 |---|---|
-| No `device.json` | Runs the defaults, warning that this phone now behaves like every other phone in the same state |
-| `device.json` will not parse | **Refuses to run.** On a farm nobody is watching, and a two-day-old account browsing at full rates because its ramp-up failed to load is worse than a phone that did nothing |
-| Settings loaded | Prints what is actually in force at startup, so a mistake shows up in the log rather than as odd behaviour a week later |
+| have no `device.json` | runs the defaults, warning it now behaves like every other phone in the same state |
+| will not parse | **refuses to run** — a young account browsing at full rates because its ramp-up failed to load is worse than a phone that did nothing |
+| load fine | prints what is in force at startup, so a mistake shows in the log, not as odd behaviour a week later |
 
-`deploy.sh` checks every settings file parses before sending any of them, and reports both phones with no settings and settings whose phone never appeared — usually a typo in a serial.
+A few things the tables do not say:
 
-```js
-// Two numbers mean a range, picked fresh each session. One number fixes it.
-session_minutes: [8, 22],
+- **Searching a topic** sends a stronger signal than liking on the feed — these are videos the account chose to watch. The time spent counts inside the session, not on top of it.
+- **`schedule.state_file` is not optional.** Android restarts apps; without it, every restart would begin the day's sessions afresh and the phone would browse in bursts far beyond the plan.
+- **`allow_anyone`** lets a video go to someone not on your roster. Leave it off. Those are real people who never asked for it and mostly never answer — videos nobody answers is what spam looks like from outside, while your own accounts reply with a sticker, the opposite signal. Picture the whole farm too: if every phone sends to every other and all reply, you have a closed circle that looks human one session at a time and not at all as a whole.
 
-rates: {                      // 0.20 means "on about 20 out of every 100 videos"
-  like: 0.20,
-  save: 0.05,
-  read_comments: 0.05,
-  share: 0.01
-},
+### The roster
 
-watch: {
-  short_seconds: [3, 9],      // most videos get a short look
-  long_seconds: [10, 28],     // a few get watched properly
-  chance_of_long_watch: 0.30,
-  chance_of_instant_skip: 0.10,
-  instant_skip_seconds: [1, 2]
-},
+The two features that reach a real inbox only ever act on your **own** accounts. Keeping a list of them on each phone by hand does not scale: there are more accounts than phones, and an account can move from one phone to another. So every phone carries the **same** file — `config/accounts.json`, a list of all your accounts' display names — and works out at startup which one it is *itself*, by reading the display name off its own Profile screen (`src/lib/identity.js`, settled on the farm's build with `probe_self_name.js`). What it may message is then simply **the roster minus its own name**, with nothing to edit per phone. `deploy.sh` pushes `accounts.json` to every phone; the startup log prints `Running as: <name>` so you can see who each phone thinks it is.
 
-comments: {
-  scrolls: [0, 2],            // zero included on purpose - see below
-  read_seconds: [1.5, 4.5]
-},
-
-chance_of_swipe_back: 0.04,   // occasionally glance back at the last video
-minimum_battery_percent: 20,
+```jsonc
+{ "accounts": ["adiiaduu.tw", "your-second-account", "your-third-account"] }
 ```
 
-Per-phone settings files and reusable personalities come later, once one phone is fully proven.
+Fill it with `probe_self_name.js` run on each phone — it prints the exact display name, invisible characters and all, ready to paste. A name spelled even slightly differently never matches, which fails safe: no message goes out. Only your own accounts belong here; a stranger must never appear, and with `allow_anyone` off a name that is not on the roster is a message that does not happen.
 
-### Searching for a topic
-
-```js
-seed: {
-  enabled: true,
-  keywords: [],              // nothing happens while this is empty
-  videos_to_watch: [3, 6],
-  once_per_day: true
-}
-```
-
-Put the topic's search terms in `keywords`. The script picks one at the start of a session, watches a few results, and goes back to the feed. Liking here matters more than liking on the feed: these are videos we chose to watch, so the signal is stronger.
-
-The time spent searching counts as part of the session rather than being added on top, so a session that seeds does not quietly run longer than the schedule planned.
-
-### Deciding when sessions happen
-
-These go in a phone's own settings file. By default the script runs one session and stops. That is the right mode for testing. Turning the schedule on makes it stay running and wake up a few times a day by itself:
-
-```js
-schedule: {
-  enabled: false,
-  active_hours: [[7, 9], [12, 14], [19, 23]],   // 24-hour clock
-  sessions_per_day: [3, 5],
-  gap_minutes: [45, 180],
-  chance_of_lazy_day: 0.15,
-  state_file: "/sdcard/脚本/farm_state.json"
-}
-```
-
-This matters more than it may look. A phone that browses whenever someone remembers to press start — including at three in the morning — looks nothing like a person, however human each individual session is.
-
-**The state file is not optional.** Android restarts apps often. Without somewhere to remember how many sessions today has already had, every restart would begin a fresh run of them, and the phone would browse in bursts far beyond the plan. The file holds four things: the date, how many sessions were planned, how many have happened, and when the last one ended.
-
-### Going easy on a new account
-
-An account created yesterday that likes a fifth of everything it sees looks wrong. Set the date it was created and the rates start low and grow:
-
-```js
-ramp_up: {
-  account_started: "2026-07-22",     // leave empty to use full rates from day one
-  stages: [
-    { first_days: 7,  rates: { like: 0.05, save: 0,    read_comments: 0.02, share: 0     } },
-    { first_days: 21, rates: { like: 0.12, save: 0.03, read_comments: 0.04, share: 0.005 } }
-    // after 21 days, the full rates apply
-  ]
-}
-```
-
-Left empty, the script says so at startup rather than quietly guessing.
-
-### Messages
-
-Two halves of one exchange. This phone sends a video to another account; that
-account answers with a sticker at the start of its next session, which may be
-hours later. The delay is not simulated — it falls out of the schedule.
-
-Both are off until you write names into them, and both refuse anything not
-named. A name that cannot be found is a message that does not get sent.
-
-```js
-messages: {
-  enabled: true,
-  chance_of_checking: 0.3,             // not every session opens the inbox
-  reply_to: ["farm-02", "farm-07"],    // exact names, as the inbox shows them
-  max_replies: [1, 2],                 // leaving some unread is realistic
-  chance_of_replying: 0.6,             // sometimes read it and leave
-  reactions: ["Heart", "Lol", "ThumbsUp"]
-},
-
-send_to_friend: {
-  enabled: true,
-  rate: 0.01,                          // share of videos watched
-  send_to: ["farm-02"],                // your own accounts
-  max_per_session: 2,
-  allow_anyone: false,                 // see below before turning this on
-  chance_of_anyone: 0.2,
-  never_send_to: []                    // never contacted, whatever else is set
-}
-```
-
-**A word about `allow_anyone`.** Turning it on lets a video go to somebody not
-on your list — anyone the account has been talking to recently. The argument for
-it is that always sending to the same one friend is its own pattern.
-
-The argument against is bigger. Those are real people who did not ask for this.
-They can block or report, and most will simply never answer — and videos that
-nobody responds to is what spam looks like from outside. Sending to your own
-accounts gets a sticker back, which is the opposite signal.
-
-It also gives up the safety we get from a list. If you do turn it on, keep
-`chance_of_anyone` small, and put anyone who must never be contacted by a script
-into `never_send_to`.
-
-**Think about the shape of the whole farm, not just one phone.** If every phone
-sends to every other phone and they all answer, you have built a closed circle:
-accounts registered together, talking only to each other, always replying. Each
-session looks human and the farm does not. Give each phone one or two names
-rather than all of them.
+One thing the roster cannot do on its own: an account only shows up in another's inbox or share panel once the two have interacted — followed or messaged before. A cluster of brand-new accounts that have never met has nobody to message yet, roster or not; they have to be introduced first.
 
 ## 9. Proving it still works
 
-Before a phone is left to run a whole day, and before new code goes to the rest
-of the farm, one phone is put through everything:
+Before a phone runs a whole day, and before new code reaches the rest of the farm, one phone is put through everything:
 
 ```bash
 ./tools/test-run.sh <phone id>
 ```
 
-It saves the phone's own settings, swaps in `config/test-all-features.json`
-with every rate turned up, runs two short sessions, and then puts the phone back
-exactly as it was — including if you interrupt it.
+It saves the phone's own settings, swaps in `config/test-all-features.json` (every rate turned up), runs two short sessions, and puts the phone back exactly as it was — even if you interrupt it.
 
-**The pass mark is what the phone wrote down afterwards, not what it said it was
-about to do.** The report is built from `farm_status.json`, the same file the
-script writes for the farm, so a feature counts as working only if it left a
-number behind:
+**The pass mark is what the phone wrote down, not what it said it was about to do.** The report is built from `farm_status.json`, so a feature counts only if it left a number behind:
 
 ```
   FEATURE                 COUNT   VERDICT
-  ----------------------------------------------
   watched videos            41   seen
   liked                     22   seen
   saved to favourites       15   seen
   read comments             15   seen
   copied a share link       14   seen
-  searched a topic           4   seen
-  replied to a message       0   not tested - switched off
-  sent to a friend           0   not tested - switched off
+  searched a topic            4   seen
+  replied to a message        1   seen
+  sent to a friend            1   seen
 ```
 
-This matters because "it ran without errors" proves nothing here. A phone can
-swipe for six minutes, press nothing at all, and finish with a tidy summary —
-that is the failure this project keeps meeting, and it is why the topic search
-was found to be broken on the farm phones despite months of clean-looking runs.
+This matters because "it ran without errors" proves nothing: a phone can swipe for six minutes, press nothing, and finish with a tidy summary — the failure this project keeps meeting, and why the topic search was found broken on the farm despite months of clean-looking runs. Two sessions, not one, so the counters can be seen resetting to zero between them.
 
-Two sessions rather than one, on purpose: the counters have to go back to zero
-in between, and a single session cannot show that.
+The two features that message a person (`messages`, `send_to_friend`) fire only against the account named in the test config, and only when the setup is there for them — an unread message this phone can reply to, and that account showing in the share panel. Point them at your **own** account and send it a message first, or they safely do nothing. The swipe back (off while the console shows) and the watchdogs — a renamed button, a login wall, a flat battery — cannot be brought about to order, and are reported as not tested rather than passed.
 
-**It says what it did not test, and never calls that a pass.** The swipe back
-(switched off while the console panel is on), the two features that message a
-real person (off until you name an account in the test settings), and the
-watchdogs — a renamed button, a login wall, a flat battery — which cannot be
-brought about safely to order.
 
 ## 10. Noticing when a phone stops working
 
@@ -474,23 +404,15 @@ This decides how long the script keeps working. These rules are not optional.
 | An account gets restricted | Medium | Low interaction rates, slow ramp-up, different personality per phone |
 | Many phones on one internet connection look linked | Medium | Outside what the script can fix. Needs a decision on separate mobile data or proxies |
 | Two copies of the script on one phone, and the old one runs | Medium | It has already happened once. `deploy.sh` and `run.sh` both write to the same single folder — never keep a second copy. The single-copy check below does **not** cover this: it matches copies by file path, so a stale copy in another folder looks like a different script |
-| The farm phones behave differently from the test phone | **Unknown** | Nothing has been tried on a Samsung yet. See section 12 |
+| The farm phones behave differently from the test phone | **Mostly handled** | The `musically` build lays several screens out differently from the test phone's `trill`. Each difference found so far — search results, the reply bar, the share panel — is fixed and recorded in `docs/WHAT-BROKE.md`. Expect more on any new model |
 | Android kills the script during the long waits between sessions | **Held up on the real farm** | The script must stay alive for hours doing nothing, which is exactly what battery savers target. The operator confirms it survives a full day on the farm phones. Watch it anyway on any new phone model |
 | Two copies of the script running on one phone | **Handled** | Starting the script does not stop a copy already running, and both look healthy while quietly doubling the session count. A copy that finds an older one now stands down. See `docs/WHAT-BROKE.md` |
 
 ## 13. Plan
 
-### Phase 1 — one phone working
-- [x] Install AutoJs6, grant permissions, prepare the phone
-- [x] Find the real button labels on our TikTok version
-- [x] Launch TikTok, wait for the feed, swipe between videos
-- [x] Like, without ever removing an existing like
-- [x] Save, without ever removing an existing save
-- [x] Human-like pauses and curved swipes
-- [x] A session that runs for a set time and stops
-- [x] Read the comments without ever writing or liking one
-- [x] Share, and get back out of the panel cleanly
-- [x] Run a session with every action firing and no button going unfound
+### Phase 1 — one phone working  ✅ done
+
+Install and permissions, real button labels, browsing, like/save without ever undoing one, human pauses and curved swipes, timed sessions, reading comments, sharing, and a full session with every action firing.
 
 ### Phase 2 — personalities and topics
 - [x] Several sessions a day, waking hours, and gaps between them
