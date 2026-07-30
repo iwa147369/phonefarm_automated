@@ -315,7 +315,8 @@ function runSession(minutes) {
     if (!checkBattery()) { state.endReason = "battery_low"; break; }
 
     if (!isTikTokOnScreen()) {
-      console.warn("TikTok is no longer on screen, reopening");
+      console.warn("TikTok is no longer on screen (currentPackage \"" +
+                   feed.currentPackageSafe() + "\"), reopening");
       if (!openTikTok()) {
         consecutiveFailures++;
         if (consecutiveFailures >= 3) {

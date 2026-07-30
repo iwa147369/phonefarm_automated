@@ -33,23 +33,93 @@ function detectTikTokPackage() {
   return null;
 }
 
+/** What currentPackage() says right now, never throwing. */
+function currentPackageSafe() {
+  try { return String(currentPackage() || ""); } catch (e) { return ""; }
+}
+
+/**
+ * A TikTok element we can actually see on screen.
+ *
+ * Used to confirm we are really in the app when currentPackage() cannot be
+ * trusted. The Like button is on every feed video; during an ad, an external
+ * page, or a system dialog it is absent - which is exactly when we DO want to
+ * treat TikTok as gone and bring it back.
+ */
+function aTikTokElementIsVisible() {
+  return findOnScreen(LABELS.like, 400) !== null;
+}
+
+/**
+ * Is this the package of a keyboard / input method?
+ *
+ * When a text field gets focus - the search box while seeding, or a field in
+ * the share sheet while sending a video - the keyboard's window comes to the
+ * front and currentPackage() returns IT, not TikTok, though TikTok is right
+ * behind it. Treating that as "TikTok left" is what produced repeated
+ * "tiktok_would_not_open" on farm-01, whose keyboard is com.sec.android
+ * .inputmethod (the Samsung keyboard), caught by the log added alongside this.
+ * Matched by name so it covers Samsung, Gboard and the rest.
+ */
+function isKeyboardPackage(pkg) {
+  return /inputmethod|keyboard|\bime\b/i.test(pkg || "");
+}
+
+/**
+ * Are we in TikTok?
+ *
+ * currentPackage() alone is not reliable on the farm's Samsung phones: for a
+ * moment during a swipe, or under an overlay, it can report a different package
+ * while TikTok is plainly on screen. Trusting it on its own made openTikTok
+ * relaunch an app that never left and time out, ending the session as
+ * "tiktok_would_not_open" - see docs/WHAT-BROKE.md. So the fast path is the
+ * package match, and if that fails we confirm with something only TikTok shows
+ * before believing it is gone.
+ */
 function isTikTokOnScreen() {
-  return currentPackage() === state.tiktokPackage;
+  if (currentPackageSafe() === state.tiktokPackage) return true;
+  return aTikTokElementIsVisible();
 }
 
 function openTikTok() {
   if (isTikTokOnScreen()) return true;
 
-  log("Opening TikTok...");
-  app.launchPackage(state.tiktokPackage);
+  // Say what we actually saw. This is where "tiktok_would_not_open" is decided,
+  // and a silent failure here is one nobody could ever diagnose.
+  var pkg = currentPackageSafe();
+  log("Opening TikTok... (currentPackage was \"" + pkg + "\")");
 
-  for (var waited = 0; waited < 20000; waited += 500) {
-    sleep(500);
-    if (isTikTokOnScreen()) {
-      // Give the feed a moment to finish loading.
-      sleep(rndInt(1800, 3200));
-      return true;
+  // A keyboard on top is not TikTok leaving - it is a focused text field with
+  // TikTok still underneath. A back press drops it and we are back where we
+  // were, without the slow relaunch that used to time out and end the session.
+  if (isKeyboardPackage(pkg)) {
+    log("  a keyboard was covering TikTok - dropping it rather than relaunching");
+    back();
+    sleep(rndInt(500, 900));
+    if (isTikTokOnScreen()) return true;
+  }
+
+  for (var attempt = 0; attempt < 3; attempt++) {
+    app.launchPackage(state.tiktokPackage);
+
+    for (var waited = 0; waited < 8000; waited += 500) {
+      sleep(500);
+      if (isTikTokOnScreen()) {
+        // Give the feed a moment to finish loading.
+        sleep(rndInt(1800, 3200));
+        return true;
+      }
     }
+
+    log("  openTikTok: attempt " + (attempt + 1) + " did not bring it up" +
+        " (currentPackage now \"" + currentPackageSafe() + "\")");
+
+    // A modal on top - an ANR "isn't responding" dialog, a permission prompt -
+    // can swallow the launch. A back press dismisses many of them and is
+    // harmless if there is none. Only reached after 8s of TikTok being neither
+    // the current package nor visible, so we are not backing out of the feed.
+    back();
+    sleep(rndInt(600, 1000));
   }
   return false;
 }
@@ -212,6 +282,7 @@ function watchFor(totalMs) {
 module.exports = {
   detectTikTokPackage: detectTikTokPackage,
   isTikTokOnScreen: isTikTokOnScreen,
+  currentPackageSafe: currentPackageSafe,
   openTikTok: openTikTok,
   checkStopSignals: checkStopSignals,
   isScreenOn: isScreenOn,
