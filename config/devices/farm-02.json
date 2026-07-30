@@ -40,5 +40,11 @@
   },
   "ramp_up": {
     "account_started": ""
+  },
+  "messages": {
+    "enabled": true
+  },
+  "send_to_friend": {
+    "enabled": true
   }
 }
