@@ -101,9 +101,11 @@ var SETTINGS = {
   messages: {
     enabled: false,
 
-    // How often a session begins by looking at the inbox. Not every session:
-    // somebody who opens their messages every single time is its own pattern.
-    chance_of_checking: 0.30,
+    // How often a session begins by looking at the inbox. High on purpose while
+    // the accounts are being grown into a network - an account that receives
+    // shares should be seen answering them. Still under 1: opening the inbox
+    // every single session, without exception, is its own pattern.
+    chance_of_checking: 0.80,
 
     // WHO WE MAY REPLY TO. Exact names as they appear in the inbox. Names, not
     // "the first few" - the top of a real inbox is New followers and Activity,
@@ -112,7 +114,11 @@ var SETTINGS = {
 
     // Keep small. Leaving some unread is what a real inbox looks like.
     max_replies: [1, 2],
-    chance_of_replying: 0.6,
+
+    // How often an eligible unread actually gets a reply. High so the network
+    // stays lively, but not 1 - a real person does not answer every message the
+    // instant they open the app.
+    chance_of_replying: 0.8,
 
     // Only these three have been checked. "Effects" and "Cards" sit on the same
     // bar and nobody has established what they do.
@@ -162,8 +168,10 @@ var SETTINGS = {
     // never fires - strangers do not send stickers back.
     allow_anyone: false,
 
-    // When allowed, how often a send goes to somebody off the list.
-    chance_of_anyone: 0.2,
+    // When allowed, how often a send goes to somebody off the list. Kept small
+    // on purpose: strangers rarely answer, so a high rate is mostly videos that
+    // go nowhere - which is what spam looks like from outside.
+    chance_of_anyone: 0.05,
 
     // Never sent to, whatever else is set. Exact names. Use this for anybody
     // real who must not be contacted by a script - a customer, a supplier, a
