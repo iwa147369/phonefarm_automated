@@ -71,6 +71,7 @@ except Exception:
 
 last = data.get("last_session") or {}
 name = data.get("device_id", "(unnamed)")
+account = data.get("account")
 when = last.get("finished_at", "?")
 
 # Flag a phone that has not finished a session for a while, and one that ended
@@ -89,10 +90,11 @@ reason = last.get("ended_because", "?")
 if reason not in ("ran_its_time", "stopped_by_hand") and not note:
     note = "  <- look into this"
 
+acct = f"  as {account}" if account else ""
 print(f"  {name:<14} {serial:<20} last {when}  "
       f"{last.get('videos', 0):>3} videos  "
       f"{last.get('liked', 0):>2} liked  "
-      f"{reason}{note}")
+      f"{reason}{acct}{note}")
 
 if last.get("buttons_not_found"):
     print(f"  {'':<14} {'':<20} buttons not found {last['buttons_not_found']} "
